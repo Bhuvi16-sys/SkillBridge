@@ -4,13 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
-export interface DailyTask {
-  id: string;
-  title: string;
-  completed: boolean;
-  priority: "High" | "Medium";
-  duration: string;
-}
+import { DailyTask } from "@/types/dashboard";
 
 interface UserContextType {
   user: User | null;
@@ -22,6 +16,7 @@ interface UserContextType {
   dailyTasks: DailyTask[];
   assessments: number;
   refreshData: () => Promise<void>;
+  logStudyHours: (hours: number) => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -43,17 +38,38 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         setMasteryIndex(stats.masteryIndex ?? 0);
         setDailyTasks(stats.dailyTasks || []);
         setAssessments(stats.quizzesCleared !== undefined ? stats.quizzesCleared : (stats.assessmentsCleared ?? 0));
+        setLoading(false);
       } else {
         console.error("Failed to fetch user stats in UserContext:", response.statusText);
+        setLoading(false);
       }
     } catch (error) {
       console.error("Error fetching stats in UserContext:", error);
+      setLoading(false);
     }
   };
 
   const refreshData = async () => {
     if (currentUser) {
       await fetchStats(currentUser.uid);
+    }
+  };
+
+  const logStudyHours = async (hours: number) => {
+    if (!currentUser) return;
+    try {
+      const response = await fetch("/api/user/stats/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: currentUser.uid, hours }),
+      });
+      if (response.ok) {
+        await refreshData();
+      } else {
+        console.error("Failed to log study hours in UserContext:", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error logging study hours in UserContext:", error);
     }
   };
 
@@ -73,8 +89,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         setMasteryIndex(0);
         setDailyTasks([]);
         setAssessments(0);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -92,6 +108,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         dailyTasks,
         assessments,
         refreshData,
+        logStudyHours,
       }}
     >
       {children}
