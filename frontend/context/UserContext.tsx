@@ -2,8 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-
+import { auth, db } from "@/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 import { DailyTask } from "@/types/dashboard";
 
 interface UserContextType {
@@ -29,30 +29,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]);
   const [assessments, setAssessments] = useState<number>(0);
 
-  const fetchStats = async (uid: string) => {
-    try {
-      const response = await fetch(`/api/user/stats?uid=${uid}`);
-      if (response.ok) {
-        const stats = await response.json();
-        setStudyHours(stats.studyHours ?? 0.0);
-        setMasteryIndex(stats.masteryIndex ?? 0);
-        setDailyTasks(stats.dailyTasks || []);
-        setAssessments(stats.quizzesCleared !== undefined ? stats.quizzesCleared : (stats.assessmentsCleared ?? 0));
-        setLoading(false);
-      } else {
-        console.error("Failed to fetch user stats in UserContext:", response.statusText);
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error("Error fetching stats in UserContext:", error);
-      setLoading(false);
-    }
-  };
-
+  // Deprecated manual refresh logic (no longer needed because of real-time snapshot listeners)
   const refreshData = async () => {
-    if (currentUser) {
-      await fetchStats(currentUser.uid);
-    }
+    return Promise.resolve();
   };
 
   const logStudyHours = async (hours: number) => {
@@ -63,9 +42,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uid: currentUser.uid, hours }),
       });
-      if (response.ok) {
-        await refreshData();
-      } else {
+      if (!response.ok) {
         console.error("Failed to log study hours in UserContext:", response.statusText);
       }
     } catch (error) {
@@ -74,17 +51,42 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (!auth) {
+    if (!auth || !db) {
       setLoading(false);
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeSnapshot: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
+
+      // Secure cleanup of any previous snapshot listeners
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+        unsubscribeSnapshot = null;
+      }
+
       if (user) {
-        await fetchStats(user.uid);
+        // Establish real-time Firestore synchronization listener
+        const userRef = doc(db!, "users", user.uid);
+        unsubscribeSnapshot = onSnapshot(userRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const stats = snapshot.data();
+            setStudyHours(stats.studyHours ?? 0.0);
+            setMasteryIndex(stats.masteryIndex ?? 0);
+            setDailyTasks(stats.dailyTasks || []);
+            setAssessments(stats.quizzesCleared !== undefined ? stats.quizzesCleared : (stats.assessmentsCleared ?? 0));
+          } else {
+            console.warn("User stats document snapshot does not exist in Firestore.");
+          }
+          setLoading(false);
+        }, (error) => {
+          console.error("Error in real-time stats snapshot listener:", error);
+          setLoading(false);
+        });
       } else {
-        // Reset stats on sign out
+        // Clear state on logout
         setStudyHours(0.0);
         setMasteryIndex(0);
         setDailyTasks([]);
@@ -93,7 +95,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => unsubscribe();
+    // Double-cleanup memory-leak prevention hook on unmount
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
+    };
   }, []);
 
   return (
