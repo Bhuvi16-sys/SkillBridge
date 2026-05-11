@@ -22,7 +22,7 @@ export function useDashboardData() {
   const fetchStats = async () => {
     if (!firebaseUser) return;
     try {
-      const response = await fetch(`/api/getUserStats?uid=${firebaseUser.uid}`);
+      const response = await fetch(`/api/user/stats?uid=${firebaseUser.uid}`);
       if (response.ok) {
         const stats = await response.json();
         setData(stats);
@@ -48,7 +48,7 @@ export function useDashboardData() {
   const handleLogHours = async (hours: number) => {
     if (!firebaseUser) return;
     try {
-      const response = await fetch("/api/updateUserStats", {
+      const response = await fetch("/api/user/stats/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uid: firebaseUser.uid, hours }),

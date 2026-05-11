@@ -120,10 +120,10 @@ app.get("/health", (req, res) => {
 });
 
 /**
- * GET /api/getUserStats
- * Fetches user statistics from Firestore
+ * GET /api/user/stats
+ * Fetches user statistics from Firestore strictly by UID
  */
-app.get(["/api/getUserStats", "/api/user/stats"], async (req, res) => {
+app.get("/api/user/stats", async (req, res) => {
   try {
     const { uid } = req.query;
     if (!uid) {
@@ -149,28 +149,7 @@ app.get(["/api/getUserStats", "/api/user/stats"], async (req, res) => {
         name: snapData.fullName || snapData.name || "SkillBridge User"
       });
     } else {
-      // Create user document structure if it doesn't exist
-      const defaultStats = {
-        weeklyHours: 0.0,
-        studyHours: 0.0,
-        masteryIndex: 0,
-        quizzesCleared: 0,
-        streakCount: 0,
-        dailyTasks: [
-          { id: "1", title: "Review Graph DFS/BFS traversals", completed: false, priority: "High", duration: "30 mins" },
-          { id: "2", title: "Practice 1 Dynamic Programming knapsack challenge", completed: false, priority: "Medium", duration: "45 mins" }
-        ],
-        level: 1,
-        xp: 0,
-        totalXpNeeded: 1000,
-        claimedDaily: false,
-        fullName: "SkillBridge User"
-      };
-      await setDoc(userRef, defaultStats);
-      return res.json({
-        ...defaultStats,
-        name: "SkillBridge User"
-      });
+      return res.status(404).json({ error: "User stats not found." });
     }
   } catch (error) {
     console.error("Error in getUserStats API:", error);
@@ -179,10 +158,10 @@ app.get(["/api/getUserStats", "/api/user/stats"], async (req, res) => {
 });
 
 /**
- * POST /api/updateUserStats
- * Increments study hours and awards mastery
+ * POST /api/user/stats/update
+ * Increments study hours and awards mastery strictly following RESTful specs
  */
-app.post(["/api/updateUserStats", "/api/user/stats/update"], async (req, res) => {
+app.post("/api/user/stats/update", async (req, res) => {
   try {
     const { uid, hours } = req.body;
     if (!uid || hours === undefined) {
