@@ -8,6 +8,10 @@ import { getFirestore, doc, getDoc, updateDoc, setDoc } from "firebase/firestore
 // Initialize environment variables
 dotenv.config();
 
+if (!process.env.GEMINI_API_KEY) {
+  console.error("ERROR: GEMINI_API_KEY is not defined in .env. Integration will fail.");
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -416,24 +420,49 @@ You MUST output the JSON matching this TypeScript schema exactly with no other s
 
 /**
  * POST /api/gemini/suggestions
- * Generates personalized study tips
+ * Generates personalized study tips strictly based on real-time database source of truth
  */
 app.post("/api/gemini/suggestions", async (req, res) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return res.json({
-        tip: "Keep practicing! Consistently spending study hours on your identified weak topics is the fastest path to expanding your overall mastery score and unlocking advanced curriculum nodes.",
+      return res.status(500).json({
+        error: "GEMINI_API_KEY is not defined in .env.",
+        tip: "Keep up the hard work!"
       });
     }
 
-    const { masteryIndex, weakTopics } = req.body;
+    const { uid } = req.body;
+    if (!uid) {
+      return res.status(400).json({ error: "Missing uid in request body." });
+    }
+
+    const userRef = doc(db, "users", uid);
+    const snap = await getDoc(userRef);
+
+    if (!snap.exists()) {
+      return res.status(404).json({
+        error: "User profile not found in Firestore.",
+        tip: "Keep up the hard work!"
+      });
+    }
+
+    const snapData = snap.data();
+    const masteryIndex = snapData.masteryIndex ?? 0;
+    const weakTopics = snapData.weakTopics || [];
 
     const topicsList = Array.isArray(weakTopics) && weakTopics.length > 0
       ? weakTopics.map((topic) => typeof topic === "string" ? topic : (topic.name || "")).filter(Boolean).join(", ")
-      : "general computer science core structures";
+      : "";
 
-    const prompt = `You are an elite, encouraging AI Study Coach on SkillBridge. Generate a highly personalized 2-sentence study tip for a student who currently has a mastery index of ${masteryIndex || 0}% and has identified the following weak topics: ${topicsList}. Make it specific, actionable, encouraging, and concise. You MUST output exactly 2 sentences and absolutely nothing else.`;
+    const systemInstruction = "You are an Elite AI Study Coach on SkillBridge. You specialize in delivering highly specific, actionable, encouraging, and extremely concise technical growth tips.";
+    
+    let prompt = "";
+    if (topicsList) {
+      prompt = `Generate a hyper-personalized, 2-sentence study tip for a student who currently has a mastery index of ${masteryIndex}% and is currently struggling with these specific weak topics: ${topicsList}. Explicitly mention their current mastery percentage of ${masteryIndex}% and specific weak topics in the tip. Make it highly specific, technical, actionable, encouraging, and concise. You MUST output exactly 2 sentences and absolutely nothing else.`;
+    } else {
+      prompt = `Generate a general but encouraging technical growth tip for a student who currently has a mastery index of ${masteryIndex}%. Since no specific weak topics are listed, offer a generic, highly actionable tip focused on general computer science progress, reference their current mastery percentage of ${masteryIndex}%, and encourage them to tackle diagnostic quizzes. You MUST output exactly 2 sentences and absolutely nothing else.`;
+    }
 
     // Try multiple models and versions in a robust fallback loop
     const versions = ["v1beta"];
@@ -462,6 +491,13 @@ app.post("/api/gemini/suggestions", async (req, res) => {
                   ],
                 },
               ],
+              systemInstruction: {
+                parts: [
+                  {
+                    text: systemInstruction
+                  }
+                ]
+              }
             }),
           });
 
@@ -469,8 +505,8 @@ app.post("/api/gemini/suggestions", async (req, res) => {
             const data = await response.json();
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
             if (text) {
-              responseText = text;
-              console.log(`Successfully completed suggestions generation using Model: ${model} (${version})`);
+              responseText = text.trim();
+              console.log(`Successfully completed personalized coaching tip using Model: ${model} (${version})`);
               break;
             }
           } else {
@@ -490,8 +526,9 @@ app.post("/api/gemini/suggestions", async (req, res) => {
     return res.json({ tip: responseText });
   } catch (error) {
     console.error("Gemini API Suggestions Route Error:", error);
-    return res.json({
-      tip: "Fantastic study streak! Ensure you log your daily study session and tackle at least one diagnostic topic quiz today to lock in your mastery curve gains.",
+    return res.status(500).json({
+      error: error.message,
+      tip: "Keep up the hard work!"
     });
   }
 });

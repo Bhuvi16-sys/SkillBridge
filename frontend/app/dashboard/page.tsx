@@ -93,6 +93,8 @@ export default function StudentDashboard() {
   const [loadingGeminiTip, setLoadingGeminiTip] = useState<boolean>(true);
 
   React.useEffect(() => {
+    if (!stats.user) return;
+    const uid = stats.user.uid;
     let active = true;
     const fetchGeminiTip = async () => {
       setLoadingGeminiTip(true);
@@ -101,6 +103,7 @@ export default function StudentDashboard() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            uid,
             masteryIndex: user.masteryIndex,
             weakTopics: weakTopics || []
           })
@@ -118,7 +121,7 @@ export default function StudentDashboard() {
 
     fetchGeminiTip();
     return () => { active = false; };
-  }, [user.masteryIndex, weakTopics]);
+  }, [stats.user, user.masteryIndex, weakTopics]);
 
   // Dynamically calculate node values and statuses from real database states (weakTopics & skills)
   const dynamicNodes = React.useMemo(() => {
