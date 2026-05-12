@@ -33,6 +33,7 @@ export default function SmartPlannerPage() {
     addGoal,
     toggleGoal,
     deleteGoal,
+    updateGoal,
     repetitionQueue: revisionTasks,
     reviewSpacedRepetition
   } = useDashboard();
@@ -295,13 +296,13 @@ export default function SmartPlannerPage() {
         if (originalTask.completed) {
           await toggleGoal(id); // Undo completion first
         }
-        // Swapping priority would require updateDoc which delete/add handles or standard.
-        // For simplicity, we trigger priority representation transitions locally or log.
+        await updateGoal(id, { priority: "High" });
       } else if (newColumn === "todo") {
         // Backlog Queue -> Not completed and priority Medium
         if (originalTask.completed) {
           await toggleGoal(id); // Undo completion
         }
+        await updateGoal(id, { priority: "Medium" });
       }
       
       let colName = "Backlog Queue";

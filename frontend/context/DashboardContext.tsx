@@ -72,7 +72,7 @@ export interface RepetitionItem {
 
 export interface NotificationItem {
   id: string;
-  type: "missed" | "weakness" | "spaced";
+  type: "missed" | "weakness" | "spaced" | "connection_request";
   title: string;
   description: string;
   timestamp: string;
@@ -104,6 +104,7 @@ export interface DashboardContextProps {
   addGoal: (goal: Omit<GoalItem, "id" | "completed">) => void;
   toggleGoal: (id: string) => void;
   deleteGoal: (id: string) => void;
+  updateGoal: (id: string, updates: Partial<GoalItem>) => Promise<void>;
   reviewSpacedRepetition: (id: string, difficulty: "Easy" | "Medium" | "Hard") => void;
   cheerCompetitor: (id: string) => void;
   markNotificationRead: (id: string) => void;
@@ -257,6 +258,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       setProjects(items);
     });
 
+    let unsubscribeFallbackGoals: (() => void) | null = null;
+    let unsubscribeFallbackLeaderboard: (() => void) | null = null;
+
     // D. Subscribe to Goals (Sorted by createdAt field)
     const goalsRef = collection(db, "users", userId, "goals");
     const goalsQuery = query(goalsRef, orderBy("createdAt", "desc"));
@@ -270,7 +274,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }, (error) => {
       // Index error fallback for safety
       console.warn("Goals query error (possible index building in progress):", error);
-      onSnapshot(goalsRef, (snapshot) => {
+      unsubscribeFallbackGoals = onSnapshot(goalsRef, (snapshot) => {
         const items: GoalItem[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
@@ -322,7 +326,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       setLeaderboard(items);
     }, (error) => {
       console.warn("Leaderboard query error (possible index building in progress):", error);
-      onSnapshot(usersRef, (snapshot) => {
+      unsubscribeFallbackLeaderboard = onSnapshot(usersRef, (snapshot) => {
         const items: Competitor[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
@@ -374,6 +378,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       unsubscribeLeaderboard();
       unsubscribeWeakTopics();
       unsubscribeSuggestions();
+      if (unsubscribeFallbackGoals) {
+        unsubscribeFallbackGoals();
+      }
+      if (unsubscribeFallbackLeaderboard) {
+        unsubscribeFallbackLeaderboard();
+      }
     };
   }, [firebaseUser]);
 
@@ -533,6 +543,16 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       await deleteDoc(doc(db, "users", firebaseUser.uid, "goals", id));
     } catch (error) {
       console.error("Error deleting goal:", error);
+    }
+  };
+
+  const updateGoal = async (id: string, updates: Partial<GoalItem>) => {
+    if (!firebaseUser || !db) return;
+    try {
+      const goalRef = doc(db, "users", firebaseUser.uid, "goals", id);
+      await updateDoc(goalRef, updates);
+    } catch (error) {
+      console.error("Error updating goal:", error);
     }
   };
 
@@ -798,6 +818,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         addGoal,
         toggleGoal,
         deleteGoal,
+        updateGoal,
         reviewSpacedRepetition,
         cheerCompetitor,
         markNotificationRead,

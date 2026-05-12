@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDashboard } from "@/context/DashboardContext";
 import { useUser } from "@/context/UserContext";
-import { Palette, Settings, Bell, Menu, Briefcase } from "lucide-react";
+import { Settings, Bell, Menu, Briefcase } from "lucide-react";
 
 export default function TopNavbar({ onMenuClick }: { onMenuClick?: () => void }) {
   const pathname = usePathname();
@@ -68,13 +68,6 @@ export default function TopNavbar({ onMenuClick }: { onMenuClick?: () => void })
           </>
         ) : (
           <>
-            <Link 
-              href="/dashboard/settings" 
-              className="text-slate-400 hover:text-white transition-colors" 
-              title="Customize Theme"
-            >
-              <Palette className="w-5 h-5" />
-            </Link>
             <Link 
               href="/dashboard/settings" 
               className="text-slate-400 hover:text-white transition-all duration-200" 

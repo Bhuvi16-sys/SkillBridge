@@ -40,7 +40,7 @@ const recentDoubts = [
 export default function AIAssistantPage() {
   const { addGoal, logQuizScore } = useDashboard();
   const { user, skillsToLearn, interests, userProfile } = useUser();
-  const [activeTab, setActiveTab] = useState<"chat" | "solve" | "explain" | "quiz">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "explain" | "quiz">("chat");
   const [chatTopic, setChatTopic] = useState("BFS Graph Cycle Detection");
   
   const [doubts, setDoubts] = useState<any[]>([]);
@@ -108,26 +108,7 @@ export default function AIAssistantPage() {
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   
-  // Structured Doubt Solver State
-  const [doubtCode, setDoubtCode] = useState(`def detect_cycle(nodes, edges):
-    visited = set()
-    queue = []
-    
-    # Simple BFS cycle finder
-    for n in nodes:
-        queue.append(n)
-        while queue:
-            curr = queue.pop(0)
-            if curr in visited:
-                return True # Cycle!
-            visited.add(curr)
-            for neigh in edges[curr]:
-                queue.append(neigh)
-    return False`);
-  const [doubtError, setDoubtError] = useState("RecursionError: maximum recursion depth exceeded / Infinite queue loop");
-  const [doubtLang, setDoubtLang] = useState("python");
-  const [solvingDoubt, setSolvingDoubt] = useState(false);
-  const [doubtResult, setDoubtResult] = useState<any | null>(null);
+
 
   // Code Explainer State
   const [explainCode, setExplainCode] = useState(`const fibonacci = (n, memo = {}) => {
@@ -598,37 +579,7 @@ export default function AIAssistantPage() {
     }, 1200);
   };
 
-  // Structured Doubt Solver Submit
-  const handleSolveDoubtSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSolvingDoubt(true);
-    setDoubtResult(null);
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "solve",
-          payload: {
-            language: doubtLang,
-            code: doubtCode,
-            error: doubtError
-          }
-        })
-      });
-      const data = await response.json();
-      setSolvingDoubt(false);
-      if (data.error) {
-        alert(`Doubt Solve Failed: ${data.error}`);
-        return;
-      }
-      setDoubtResult(data);
-    } catch (err) {
-      setSolvingDoubt(false);
-      alert("Network error during diagnostic compile.");
-    }
-  };
 
   // Code Explainer Submit
   const handleExplainCodeSubmit = async (e: React.FormEvent) => {
@@ -648,13 +599,13 @@ export default function AIAssistantPage() {
       const data = await response.json();
       setExplainingCode(false);
       if (data.error) {
-        alert(`Explanation Failed: ${data.error}`);
-        return;
+        throw new Error(data.error);
       }
       setExplainResult(data);
-    } catch (err) {
+    } catch (err: any) {
+      console.error("AI Explainer failed:", err);
       setExplainingCode(false);
-      alert("Network error analyzing dynamic sequence maps.");
+      triggerToast(err.message || "Network connection error while analyzing code snippet.");
     }
   };
 
@@ -675,38 +626,31 @@ export default function AIAssistantPage() {
         )}
       </AnimatePresence>
 
-      <div className="flex justify-between items-center bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-5 rounded-2xl shrink-0">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-5 rounded-2xl shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400">
             <Bot className="w-5.5 h-5.5" />
           </div>
-          <div>
+          <div className="text-left">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">AI Expert Assistant</h2>
             <p className="text-xs text-slate-400">Adaptive concept resolving & doubt compilation</p>
           </div>
         </div>
 
         {/* Tab Selection Row */}
-        <div className="flex flex-wrap gap-1 bg-slate-950 p-1 rounded-xl border border-slate-850">
+        <div className="flex flex-wrap gap-1 bg-slate-950 p-1 rounded-xl border border-slate-850 w-full xl:w-auto">
           <button
             onClick={() => setActiveTab("chat")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 xl:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeTab === "chat" ? "bg-teal-500 text-slate-950 font-black" : "text-slate-400 hover:text-white"
             }`}
           >
             AI Chat Hub
           </button>
-          <button
-            onClick={() => setActiveTab("solve")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === "solve" ? "bg-teal-500 text-slate-950 font-black" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            Structured Doubt Solver
-          </button>
+
           <button
             onClick={() => setActiveTab("explain")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 xl:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeTab === "explain" ? "bg-teal-500 text-slate-950 font-black" : "text-slate-400 hover:text-white"
             }`}
           >
@@ -714,7 +658,7 @@ export default function AIAssistantPage() {
           </button>
           <button
             onClick={() => setActiveTab("quiz")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            className={`flex-1 xl:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeTab === "quiz" ? "bg-teal-500 text-slate-950 font-black" : "text-slate-400 hover:text-white"
             }`}
           >
@@ -726,8 +670,8 @@ export default function AIAssistantPage() {
       {/* Main Workspace Panels */}
       <div className="flex-1 flex gap-6 overflow-hidden min-h-0">
         
-        {/* Left sidebar: Recent Doubts (only active on AI Chat Tab) */}
-        <div className={`w-[240px] shrink-0 bg-slate-900/20 border border-slate-850 rounded-2xl p-5 flex flex-col justify-between ${activeTab === "chat" ? "block" : "hidden md:block"}`}>
+        {/* Left sidebar: Recent Doubts (only active on AI Chat Tab on desktop) */}
+        <div className={`w-[240px] shrink-0 bg-slate-900/20 border border-slate-850 rounded-2xl p-5 flex flex-col justify-between hidden lg:flex`}>
           <div>
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
               <BrainCircuit className="w-4 h-4 text-teal-400" /> Active Doubt Logs
@@ -1017,147 +961,7 @@ export default function AIAssistantPage() {
             </div>
           )}
 
-          {activeTab === "solve" && (
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/20">
-                  <Terminal className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Structured Code & Doubt Solver</h3>
-                  <p className="text-[11px] text-slate-400">Paste structured blocks to pinpoint memory overflows and loop leaks</p>
-                </div>
-              </div>
 
-              <form onSubmit={handleSolveDoubtSubmit} className="space-y-4">
-                
-                {/* Language selection */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {["python", "cpp", "javascript", "java"].map((lang) => (
-                    <button
-                      key={lang}
-                      type="button"
-                      onClick={() => setDoubtLang(lang)}
-                      className={`p-3 rounded-xl border text-xs font-bold uppercase tracking-wider text-center transition-colors ${
-                        doubtLang === lang 
-                          ? "bg-teal-500/15 border-teal-500/40 text-teal-400" 
-                          : "bg-slate-950/50 border-slate-850 hover:border-slate-800 text-slate-400"
-                      }`}
-                    >
-                      {lang === "cpp" ? "C++" : lang}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Code editor mock box */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                      <Code className="w-4 h-4 text-teal-400" /> Source Code
-                    </label>
-                    <textarea
-                      value={doubtCode}
-                      onChange={(e) => setDoubtCode(e.target.value)}
-                      rows={10}
-                      className="w-full bg-slate-950 text-slate-300 border border-slate-850 focus:border-teal-500 p-4 rounded-xl text-xs font-mono focus:outline-none transition-colors"
-                    />
-                  </div>
-
-                  {/* Terminal error log log box */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                      <AlertCircle className="w-4 h-4 text-red-400" /> Terminal Error Log (Optional)
-                    </label>
-                    <textarea
-                      value={doubtError}
-                      onChange={(e) => setDoubtError(e.target.value)}
-                      rows={10}
-                      placeholder="Paste terminal error trace logs here..."
-                      className="w-full bg-slate-950/60 text-red-400/90 border border-slate-850 focus:border-red-500/40 p-4 rounded-xl text-xs font-mono focus:outline-none transition-colors"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={solvingDoubt}
-                  className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 h-12 rounded-xl text-xs font-black shadow-[0_0_20px_rgba(20,184,166,0.15)] transition-all flex items-center justify-center gap-1.5"
-                >
-                  {solvingDoubt ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Compiling static diagnostics...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" /> Synthesize Code Doubt Resolution
-                    </>
-                  )}
-                </button>
-              </form>
-
-              {/* Resolved Output pane */}
-              <AnimatePresence>
-                {doubtResult && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-5 bg-slate-950 rounded-2xl border border-slate-850 space-y-4"
-                  >
-                    <div className="flex justify-between items-center border-b border-slate-850 pb-3">
-                      <h4 className="text-sm font-bold text-teal-400 flex items-center gap-1.5">
-                        <CheckCircle className="w-4 h-4 text-teal-400" /> Doubt Diagnosis: {doubtResult.topic}
-                      </h4>
-                      <span className="text-[9px] font-black uppercase bg-red-500/10 px-2 py-0.5 rounded text-red-400 border border-red-500/15">Resolved</span>
-                    </div>
-
-                    <div className="space-y-3.5 text-xs">
-                      <div>
-                        <span className="font-bold text-slate-400 uppercase tracking-wider text-[9px]">Root Cause Detection:</span>
-                        <p className="text-slate-300 mt-1 leading-relaxed">{doubtResult.errorReason}</p>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                        <div>
-                          <span className="font-bold text-slate-400 uppercase tracking-wider text-[9px] block mb-1">Impacted Lines:</span>
-                          <span className="px-2 py-1 bg-red-500/10 text-red-400 text-[10px] font-mono rounded">{doubtResult.linesAffected}</span>
-                        </div>
-                        <div>
-                          <span className="font-bold text-slate-400 uppercase tracking-wider text-[9px] block mb-1">Recovery Plan Recommendation:</span>
-                          <p className="text-slate-300 leading-normal">{doubtResult.fixDescription}</p>
-                        </div>
-                      </div>
-
-                      <div className="pt-4 space-y-2">
-                        <span className="font-bold text-slate-400 uppercase tracking-wider text-[9px]">Recommended Correct Code:</span>
-                        <div className="bg-slate-950 border border-slate-850 rounded-xl p-4.5 relative overflow-x-auto">
-                          <button
-                            onClick={() => handleCopy(doubtResult.codeFix, 999)}
-                            className="absolute top-3.5 right-3.5 text-slate-500 hover:text-white bg-slate-900/80 border border-slate-800 p-1.5 rounded transition-colors"
-                          >
-                            {copiedIndex === 999 ? <Check className="w-3.5 h-3.5 text-teal-400" /> : <Copy className="w-3.5 h-3.5" />}
-                          </button>
-                          <code className="text-xs text-slate-300 font-mono block whitespace-pre">
-                            {doubtResult.codeFix}
-                          </code>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 flex justify-end gap-3 border-t border-slate-900">
-                      <button
-                        onClick={handleAddToPlanner}
-                        className="px-4 py-2 bg-teal-500/10 text-teal-400 border border-teal-500/20 hover:bg-teal-500 hover:text-slate-950 font-bold rounded-lg text-xs transition-colors flex items-center gap-1.5"
-                      >
-                        <Calendar className="w-3.5 h-3.5" /> Append Recovery to Study Planner
-                      </button>
-                    </div>
-
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-            </div>
-          )}
 
           {activeTab === "explain" && (
             <div className="flex-1 overflow-y-auto p-6 space-y-6">

@@ -161,8 +161,8 @@ export default function StudentDashboard() {
 
 
 
-  // Compute tasks completions from Firebase dailyTasks response via stats
-  const dailyTasks = stats.dailyTasks || [];
+  // Compute tasks completions from Firebase goals subcollection via DashboardContext
+  const dailyTasks = tasks || [];
   const completedCount = dailyTasks.filter(t => t.completed).length;
   const progressPercent = dailyTasks.length ? Math.round((completedCount / dailyTasks.length) * 100) : 0;
 
@@ -603,11 +603,11 @@ export default function StudentDashboard() {
           </span>
         </div>
 
-        <div className="relative bg-slate-950/80 border border-slate-850 rounded-2xl p-4 overflow-hidden shadow-inner flex items-center justify-center min-h-[220px]">
+        <div className="relative bg-slate-950/80 border border-slate-850 rounded-2xl p-4 overflow-x-auto scrollbar-thin shadow-inner flex items-center justify-start md:justify-center min-h-[220px]">
           {/* Animated network grid bg pattern */}
-          <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] opacity-30"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] opacity-30 pointer-events-none"></div>
           
-          <svg className="w-full max-w-[800px] h-[180px] relative z-10" viewBox="0 0 800 180" preserveAspectRatio="xMidYMid meet">
+          <svg className="w-full min-w-[650px] max-w-[800px] h-[180px] relative z-10" viewBox="0 0 800 180" preserveAspectRatio="xMidYMid meet">
             {/* Defs for glow filter effects and arrows */}
             <defs>
               <marker id="arrow" viewBox="0 0 10 10" refX="18" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">

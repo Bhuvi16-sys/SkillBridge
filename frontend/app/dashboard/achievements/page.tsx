@@ -37,6 +37,29 @@ export default function AchievementsPage() {
   const completedTasksCount = goals ? goals.filter(g => g.completed).length : 0;
   const totalTasksCount = goals ? goals.length : 0;
 
+  // Compute user's actual rank based on the sorted list (before pinning user to the top)
+  const userRankNumber = useMemo(() => {
+    if (!liveLeaderboard || liveLeaderboard.length === 0) return null;
+    const sorted = [...liveLeaderboard].sort((a, b) => {
+      const aTests = a.assessmentsCleared ?? 0;
+      const bTests = b.assessmentsCleared ?? 0;
+      if (bTests !== aTests) return bTests - aTests;
+      return b.xp - a.xp;
+    });
+    const index = sorted.findIndex(p => p.name === user.name || p.id === user.email);
+    return index !== -1 ? index + 1 : null;
+  }, [liveLeaderboard, user.name, user.email]);
+
+  const cohortText = useMemo(() => {
+    if (userRankNumber === null) return "Rank #1";
+    return `Rank #${userRankNumber}`;
+  }, [userRankNumber]);
+
+  const cohortSubtext = useMemo(() => {
+    const total = liveLeaderboard.length || 1;
+    return `Out of ${total} active scholar${total === 1 ? "" : "s"}`;
+  }, [liveLeaderboard]);
+
   // Compute dynamic ranking tier based on real-time accomplishments!
   const userRank = useMemo(() => {
     const hours = user.studyHours || 0;
@@ -406,8 +429,8 @@ export default function AchievementsPage() {
 
           <div className="bg-slate-950/40 border border-slate-900 p-4 rounded-xl flex flex-col justify-center text-left col-span-2 sm:col-span-1">
             <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">COHORT POSITION</span>
-            <p className="text-xl font-black text-white mt-1">Top 15%</p>
-            <span className="text-[10px] text-pink-400 font-bold mt-1">Interactive CS Bracket</span>
+            <p className="text-xl font-black text-white mt-1">{cohortText}</p>
+            <span className="text-[10px] text-pink-400 font-bold mt-1">{cohortSubtext}</span>
           </div>
         </div>
       </div>

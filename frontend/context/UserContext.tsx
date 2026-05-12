@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { DailyTask } from "@/types/dashboard";
 import { userProfileConverter, UserProfile } from "@/lib/models";
 
@@ -88,6 +88,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             const stats = snapshot.data();
             setStudyHours(stats.studyHours ?? 0.0);
             setMasteryIndex(stats.masteryIndex ?? 0);
+            
             // stats has type UserProfile, but dailyTasks is on stats. Since DailyTask is imported we keep it.
             // But stats.dailyTasks can be read as any since stats is UserProfile and dailyTasks is not explicitly on it, 
             // wait! Let's cast stats as any to avoid compilation type issues for dailyTasks
@@ -101,6 +102,33 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             setInterests(stats.interests || []);
             setUserProfile(stats);
             setRole(stats.role || null);
+
+            // Real-time daily streak calculator & updater on login/session initialization
+            const todayStr = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+            const lastLoginDate = rawData.lastLoginDate;
+
+            if (lastLoginDate !== todayStr) {
+              let newStreak = stats.streak ?? 0;
+              if (!lastLoginDate) {
+                newStreak = 1;
+              } else {
+                const lastLogin = new Date(lastLoginDate);
+                const today = new Date(todayStr);
+                const diffTime = Math.abs(today.getTime() - lastLogin.getTime());
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays === 1) {
+                  newStreak += 1;
+                } else if (diffDays > 1) {
+                  newStreak = 1;
+                }
+              }
+
+              // Asynchronously update the document to avoid infinite loop inside snapshot listener
+              updateDoc(doc(db!, "users", user.uid), {
+                streak: newStreak,
+                lastLoginDate: todayStr
+              }).catch(err => console.error("Failed to auto-update daily consistency streak:", err));
+            }
           } else {
             console.warn("User stats document snapshot does not exist in Firestore.");
           }

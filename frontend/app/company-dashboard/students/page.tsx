@@ -59,19 +59,25 @@ export default function StudentDiscovery() {
       let fetchedStudents: UserProfile[] = [];
 
       try {
-        const q = query(
-          usersRef,
-          where("role", "==", "student"),
-          orderBy("rank", "desc")
-        );
+        const q = query(usersRef, where("role", "==", "student"));
         const querySnapshot = await getDocs(q);
         fetchedStudents = querySnapshot.docs.map(doc => doc.data());
-      } catch (indexError) {
-        console.warn("Firestore index not found. Falling back to client-side sorting:", indexError);
-        const fallbackQ = query(usersRef, where("role", "==", "student"));
-        const querySnapshot = await getDocs(fallbackQ);
-        fetchedStudents = querySnapshot.docs.map(doc => doc.data());
-        fetchedStudents.sort((a, b) => (b.rank || 0) - (a.rank || 0));
+        
+        // Sort primarily by assessmentsCleared descending, secondarily by XP descending
+        fetchedStudents.sort((a, b) => {
+          const aTests = a.assessmentsCleared ?? 0;
+          const bTests = b.assessmentsCleared ?? 0;
+          if (bTests !== aTests) return bTests - aTests;
+          return (b.xp ?? 0) - (a.xp ?? 0);
+        });
+
+        // Assign rank dynamically based on real student performance position
+        fetchedStudents = fetchedStudents.map((student, index) => ({
+          ...student,
+          rank: index + 1
+        }));
+      } catch (queryError) {
+        console.error("Error querying and ranking students dynamically:", queryError);
       }
 
       setStudents(fetchedStudents);

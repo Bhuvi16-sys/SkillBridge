@@ -9,13 +9,13 @@ export function useDashboardData() {
     studyHours: stats.studyHours,
     masteryIndex: stats.masteryIndex,
     quizzesCleared: stats.assessments,
-    streakCount: 0, // Fallback/default profile statistics
+    streakCount: stats.userProfile?.streak ?? 0,
     dailyTasks: stats.dailyTasks,
-    level: 1,
-    xp: 0,
-    totalXpNeeded: 1000,
-    claimedDaily: false,
-    name: stats.user?.displayName || "SkillBridge User"
+    level: stats.userProfile?.level ?? 1,
+    xp: stats.userProfile?.xp ?? 0,
+    totalXpNeeded: stats.userProfile?.totalXpNeeded ?? 1000,
+    claimedDaily: stats.userProfile?.claimedDaily ?? false,
+    name: stats.userProfile?.fullName || stats.user?.displayName || "SkillBridge User"
   };
 
   return {
