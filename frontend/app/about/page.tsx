@@ -1,27 +1,7 @@
 import PublicNavbar from '@/components/PublicNavbar';
 import PublicFooter from '@/components/PublicFooter';
-import { Target, Users, Landmark, Compass, Eye, ShieldAlert, BadgeInfo } from 'lucide-react';
+import { Compass, ShieldAlert } from 'lucide-react';
 
-const team = [
-  {
-    name: "Dr. Evelyn Vance",
-    role: "CEO & AI Researcher",
-    bio: "Ex-Google AI Lead, specializing in adaptive reinforcement learning models and cognitive architectures.",
-    avatar: "https://i.pravatar.cc/150?img=47"
-  },
-  {
-    name: "Arjun Mehta",
-    role: "Chief Technology Officer",
-    bio: "Distributed systems engineer with 12+ years of experience scaling consumer platforms and API layers.",
-    avatar: "https://i.pravatar.cc/150?img=12"
-  },
-  {
-    name: "Clara Dubois",
-    role: "Head of Learning Design",
-    bio: "Educational psychologist dedicated to translating pedagogy into bite-sized, gamified software solutions.",
-    avatar: "https://i.pravatar.cc/150?img=49"
-  }
-];
 
 export default function AboutPage() {
   return (
@@ -104,20 +84,6 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Team Section */}
-        <section className="py-20 border-t border-slate-900 max-w-6xl mx-auto px-6">
-          <h2 className="text-3xl font-bold text-center mb-12">Meet the Innovators</h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            {team.map((member) => (
-              <div key={member.name} className="bg-[#1e293b]/30 backdrop-blur-md border border-slate-800/60 p-6 rounded-2xl flex flex-col items-center text-center">
-                <img src={member.avatar} alt={member.name} className="w-20 h-20 rounded-full border-2 border-teal-500 mb-4" />
-                <h3 className="font-bold text-white text-lg">{member.name}</h3>
-                <p className="text-teal-400 text-xs font-semibold mb-3">{member.role}</p>
-                <p className="text-sm text-slate-400 leading-relaxed">{member.bio}</p>
-              </div>
-            ))}
-          </div>
-        </section>
       </div>
 
       <PublicFooter />

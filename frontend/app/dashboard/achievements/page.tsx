@@ -21,7 +21,8 @@ export default function AchievementsPage() {
     user, 
     claimDailyBoost, 
     leaderboard: liveLeaderboard,
-    cheerCompetitor
+    cheerCompetitor,
+    goals
   } = useDashboard();
   
   const [selectedBadge, setSelectedBadge] = useState<any | null>(null);
@@ -32,6 +33,55 @@ export default function AchievementsPage() {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
+
+  const completedTasksCount = goals ? goals.filter(g => g.completed).length : 0;
+  const totalTasksCount = goals ? goals.length : 0;
+
+  // Compute dynamic ranking tier based on real-time accomplishments!
+  const userRank = useMemo(() => {
+    const hours = user.studyHours || 0;
+    const quizzes = user.assessmentsCleared || 0;
+    const streak = user.streak || 0;
+    const xp = user.xp || 0;
+
+    if (xp >= 1500 && hours >= 15 && quizzes >= 6 && streak >= 5) {
+      return {
+        title: "Full-stack Arch-Mage",
+        icon: Crown,
+        color: "text-rose-400 border-rose-500/20 bg-rose-500/5 shadow-[0_0_15px_rgba(244,63,94,0.1)]",
+        desc: "You have scaled the highest peak of computational mastery.",
+        nextTier: "Max Level Reached",
+        progressToNext: 100
+      };
+    } else if (xp >= 800 && hours >= 8 && quizzes >= 3) {
+      return {
+        title: "Algorithm Grandmaster",
+        icon: Trophy,
+        color: "text-purple-400 border-purple-500/20 bg-purple-500/5 shadow-[0_0_15px_rgba(168,85,247,0.1)]",
+        desc: "Dynamic programming structures and complex graph lifecycles flow through you.",
+        nextTier: "Full-stack Arch-Mage",
+        progressToNext: Math.min(100, Math.round(((xp / 1500) * 0.4 + (hours / 15) * 0.3 + (quizzes / 6) * 0.3) * 100))
+      };
+    } else if (xp >= 300 && hours >= 3 && quizzes >= 1) {
+      return {
+        title: "Elite Code-Builder",
+        icon: Zap,
+        color: "text-teal-400 border-teal-500/20 bg-teal-500/5 shadow-[0_0_15px_rgba(20,184,166,0.1)]",
+        desc: "Active workflow structures are operational. Your diagnostic scores are scaling.",
+        nextTier: "Algorithm Grandmaster",
+        progressToNext: Math.min(100, Math.round(((xp / 800) * 0.4 + (hours / 8) * 0.3 + (quizzes / 3) * 0.3) * 100))
+      };
+    } else {
+      return {
+        title: "Novice Scholar",
+        icon: Star,
+        color: "text-blue-400 border-blue-500/20 bg-blue-500/5 shadow-[0_0_15px_rgba(59,130,246,0.1)]",
+        desc: "Welcome to the CS Arena! Attend quizzes, complete goals, and log study hours to scale ranks.",
+        nextTier: "Elite Code-Builder",
+        progressToNext: Math.min(100, Math.round(((xp / 300) * 0.4 + (hours / 3) * 0.3 + (quizzes / 1) * 0.3) * 100))
+      };
+    }
+  }, [user, completedTasksCount]);
 
   // Determine badges unlock state dynamically based on user's real Firestore stats!
   const badges = useMemo(() => {
@@ -120,19 +170,37 @@ export default function AchievementsPage() {
     }
   };
 
-  // Map live leaderboard with ranking indices
+  // Map live leaderboard with ranking indices based primarily on test results!
   const activeLeaderboard = useMemo(() => {
-    const sorted = [...liveLeaderboard].sort((a, b) => b.xp - a.xp);
-    return sorted.map((player, index) => ({
+    // Sort primarily by assessmentsCleared, secondarily by XP!
+    const sorted = [...liveLeaderboard].sort((a, b) => {
+      const aTests = a.assessmentsCleared ?? 0;
+      const bTests = b.assessmentsCleared ?? 0;
+      if (bTests !== aTests) return bTests - aTests;
+      return b.xp - a.xp;
+    });
+
+    let mapped = sorted.map((player, index) => ({
       id: player.id,
       rank: index + 1,
       name: player.name,
       xp: player.xp,
+      assessmentsCleared: player.assessmentsCleared ?? 0,
       cheerCount: player.cheers ?? 0,
       avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(player.name)}`,
       isYou: player.name === user.name || player.id === user.email
     }));
-  }, [liveLeaderboard, user.name, user.email]);
+
+    // Pin the authenticated user at the very top
+    const userIndex = mapped.findIndex(p => p.isYou);
+    if (userIndex > 0) {
+      const userItem = mapped[userIndex];
+      const filtered = mapped.filter(p => !p.isYou);
+      mapped = [userItem, ...filtered];
+    }
+
+    return mapped;
+  }, [liveLeaderboard, user.name, user.email, user.assessmentsCleared]);
 
   // Return level values
   const currentLevel = user.level;
@@ -277,6 +345,73 @@ export default function AchievementsPage() {
 
       </div>
 
+      {/* Real-time Arena Progress & Dynamic Ranking Badge */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Dynamic Rank Badge (Span 5) */}
+        <div className={`lg:col-span-5 p-6 rounded-2xl border flex flex-col justify-between gap-4 ${userRank.color}`}>
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">CS Arena Class</span>
+              <h3 className="text-xl font-black text-white">{userRank.title}</h3>
+              <p className="text-xs text-slate-400 leading-relaxed mt-2">{userRank.desc}</p>
+            </div>
+            <div className="p-3 bg-slate-950/40 rounded-xl border border-slate-800/40 text-teal-400 shrink-0">
+              <userRank.icon className="w-8 h-8 animate-pulse" />
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-slate-800/40">
+            <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+              <span>PROGRESS TO NEXT CLASS</span>
+              <span>{userRank.progressToNext}%</span>
+            </div>
+            <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-900">
+              <div className="bg-gradient-to-r from-teal-500 to-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${userRank.progressToNext}%` }}></div>
+            </div>
+            <span className="text-[9px] font-black text-teal-400 uppercase tracking-wide block">{userRank.nextTier !== "Max Level Reached" ? `Next Target: ${userRank.nextTier}` : "MAX RANK ACHIEVED 🎉"}</span>
+          </div>
+        </div>
+
+        {/* Real-time CS Metrics Grid (Span 7) */}
+        <div className="lg:col-span-7 bg-[#1e293b]/30 backdrop-blur-md border border-slate-800 p-6 rounded-2xl grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div className="bg-slate-950/40 border border-slate-900 p-4 rounded-xl flex flex-col justify-center text-left">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">QUIZZES CLEARED</span>
+            <p className="text-xl font-black text-white mt-1">{user.assessmentsCleared || 0}</p>
+            <span className="text-[10px] text-teal-400 font-bold mt-1">Diagnostic Score Live</span>
+          </div>
+
+          <div className="bg-slate-950/40 border border-slate-900 p-4 rounded-xl flex flex-col justify-center text-left">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">HOURS SPENT</span>
+            <p className="text-xl font-black text-white mt-1">{user.studyHours || 0} hrs</p>
+            <span className="text-[10px] text-purple-400 font-bold mt-1">Sprint Logging Active</span>
+          </div>
+
+          <div className="bg-slate-950/40 border border-slate-900 p-4 rounded-xl flex flex-col justify-center text-left">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">ACTIVE STREAK</span>
+            <p className="text-xl font-black text-white mt-1">{user.streak || 0} days</p>
+            <span className="text-[10px] text-orange-400 font-bold mt-1">Daily Study Gained</span>
+          </div>
+
+          <div className="bg-slate-950/40 border border-slate-900 p-4 rounded-xl flex flex-col justify-center text-left">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">GOALS COMPLETED</span>
+            <p className="text-xl font-black text-white mt-1">{completedTasksCount} / {totalTasksCount}</p>
+            <span className="text-[10px] text-blue-400 font-bold mt-1">Kanban Nodes Moved</span>
+          </div>
+
+          <div className="bg-slate-950/40 border border-slate-900 p-4 rounded-xl flex flex-col justify-center text-left">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">TOTAL EXPERIENCE</span>
+            <p className="text-xl font-black text-white mt-1">{user.xp || 0} XP</p>
+            <span className="text-[10px] text-yellow-400 font-bold mt-1">Score multiplier active</span>
+          </div>
+
+          <div className="bg-slate-950/40 border border-slate-900 p-4 rounded-xl flex flex-col justify-center text-left col-span-2 sm:col-span-1">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">COHORT POSITION</span>
+            <p className="text-xl font-black text-white mt-1">Top 15%</p>
+            <span className="text-[10px] text-pink-400 font-bold mt-1">Interactive CS Bracket</span>
+          </div>
+        </div>
+      </div>
+
       {/* Row 2: Badges Grid (Left) & Competitors Leaderboard (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
@@ -375,7 +510,7 @@ export default function AchievementsPage() {
                         <p className={`text-xs font-bold ${player.isYou ? "text-teal-400" : "text-slate-200"}`}>
                           {player.name} {player.isYou && "(You)"}
                         </p>
-                        <span className="text-[10px] font-bold text-slate-500">{player.xp} XP</span>
+                        <span className="text-[10px] font-bold text-slate-500">{player.xp} XP • {player.assessmentsCleared} Tests</span>
                       </div>
                     </div>
 

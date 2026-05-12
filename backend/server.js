@@ -249,11 +249,13 @@ ${payload.context}`;
     } else if (action === "quiz") {
       responseMimeType = "application/json";
       systemInstruction = "You are a software engineering technical interviewer. Generate multiple choice quiz questions in valid JSON format. Follow the requested JSON schema exactly.";
-      prompt = `Generate a 2-question technical multiple-choice diagnostic quiz in JSON format based on this technical topic: "${payload.topic}".
+      const numQuestions = payload.numQuestions || 3;
+      const difficulty = payload.difficulty || "Medium";
+      prompt = `Generate a ${numQuestions}-question technical multiple-choice diagnostic quiz at '${difficulty}' difficulty level in JSON format based on this technical topic: "${payload.topic}".
       
 You MUST output the JSON matching this TypeScript schema exactly with no other surrounding text:
 {
-  "title": "Topic Quiz Title",
+  "title": "${payload.topic} Arena Quiz",
   "questions": [
     {
       "id": 1,
@@ -326,11 +328,35 @@ You MUST output the JSON matching this TypeScript schema exactly with no other s
     }
   ]
 }`;
+    } else if (action === "planner") {
+      responseMimeType = "application/json";
+      systemInstruction = "You are an expert AI Study Planner. Create customized 5-day weekly study schedules with real project ideas and actionable goals. Follow the requested JSON schema exactly.";
+      prompt = `Create a customized 5-day study plan for a student interested in: "${payload.interests ? payload.interests.join(', ') : 'Software Engineering'}" and wants to master skills: "${payload.skillsToLearn ? payload.skillsToLearn.join(', ') : 'Core Concepts'}".
+      
+      Generate a 5-day timeline where each day has:
+      1. "day": string (e.g. "Day 1")
+      2. "topic": string (e.g. "React Hooks & Functional Components")
+      3. "description": string (brief summary of what to learn)
+      4. "tasks": string array of 2-3 specific action items (e.g. ["Write custom useFetch hook", "Build simple counter with useReducer"])
+      5. "projectIdea": string (a mini project idea)
+
+      You MUST output the JSON matching this TypeScript schema exactly with no other surrounding text:
+      {
+        "days": [
+          {
+            "day": "Day 1",
+            "topic": "Topic Name",
+            "description": "Topic description",
+            "tasks": ["Task 1", "Task 2"],
+            "projectIdea": "Build a simple weather dashboard."
+          }
+        ]
+      }`;
     }
 
     // Model retry configuration
-    const versions = ["v1beta"];
-    const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+    const versions = ["v1", "v1beta"];
+    const models = ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"];
     let responseText = "";
     let lastError = "";
 
@@ -465,8 +491,8 @@ app.post("/api/gemini/suggestions", async (req, res) => {
     }
 
     // Try multiple models and versions in a robust fallback loop
-    const versions = ["v1beta"];
-    const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+    const versions = ["v1", "v1beta"];
+    const models = ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"];
     let responseText = "";
     let lastError = "";
 
@@ -526,7 +552,7 @@ app.post("/api/gemini/suggestions", async (req, res) => {
     return res.json({ tip: responseText });
   } catch (error) {
     console.error("Gemini API Suggestions Route Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       error: error.message,
       tip: "Keep up the hard work!"
     });

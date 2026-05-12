@@ -11,12 +11,15 @@ export interface UserProfile {
   fullName: string;
   createdAt: string;
   updatedAt: string;
+  profilePictureUrl?: string;
   
   // Student specific stats (Dashboard, Analytics, Profile, Assistant)
   institution?: string;
   gradeLevel?: string;
   subjectOfInterest?: string;
   bio?: string;
+  rank?: number;
+  totalScore?: number;
   
   level?: number;
   xp?: number;
@@ -28,6 +31,11 @@ export interface UserProfile {
   masteryIndex?: number;
   assessmentsCleared?: number;
   readinessScore?: number;
+
+  // Onboarding fields
+  onboardingCompleted?: boolean;
+  skillsToLearn?: string[];
+  interests?: string[];
 
   // Company / Recruiter specific details
   companyName?: string;
@@ -45,6 +53,7 @@ export const userProfileConverter: FirestoreDataConverter<UserProfile> = {
       fullName: user.fullName,
       createdAt: user.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      profilePictureUrl: user.profilePictureUrl ?? "",
       
       // Student Fields
       institution: user.institution ?? "",
@@ -60,6 +69,13 @@ export const userProfileConverter: FirestoreDataConverter<UserProfile> = {
       masteryIndex: user.masteryIndex ?? 0,
       assessmentsCleared: user.assessmentsCleared ?? 0,
       readinessScore: user.readinessScore ?? 0,
+      rank: user.rank ?? 0,
+      totalScore: user.totalScore ?? 0,
+
+      // Onboarding Fields
+      onboardingCompleted: user.onboardingCompleted ?? false,
+      skillsToLearn: user.skillsToLearn ?? [],
+      interests: user.interests ?? [],
 
       // Recruiter / Corporate Fields
       companyName: user.companyName ?? "",
@@ -77,6 +93,7 @@ export const userProfileConverter: FirestoreDataConverter<UserProfile> = {
       fullName: data.fullName,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
+      profilePictureUrl: data.profilePictureUrl ?? "",
       
       institution: data.institution,
       gradeLevel: data.gradeLevel,
@@ -91,6 +108,13 @@ export const userProfileConverter: FirestoreDataConverter<UserProfile> = {
       masteryIndex: data.masteryIndex,
       assessmentsCleared: data.assessmentsCleared,
       readinessScore: data.readinessScore,
+      rank: data.rank ?? 0,
+      totalScore: data.totalScore ?? 0,
+
+      // Onboarding Fields
+      onboardingCompleted: data.onboardingCompleted ?? false,
+      skillsToLearn: data.skillsToLearn || [],
+      interests: data.interests || [],
 
       companyName: data.companyName,
       industry: data.industry,
@@ -100,6 +124,17 @@ export const userProfileConverter: FirestoreDataConverter<UserProfile> = {
   }
 };
 
+
+/**
+ * 1.5 COMPANY PROFILE SCHEMA
+ */
+export interface CompanyProfile {
+  companyName: string;
+  industry: string;
+  recruiterName: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 /**
  * 2. RECRUITER PROFILE SCHEMA

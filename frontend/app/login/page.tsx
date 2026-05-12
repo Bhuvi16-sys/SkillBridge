@@ -4,8 +4,11 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { auth, googleProvider, isFirebaseConfigured } from "@/lib/firebase";
+import { auth, db, googleProvider, isFirebaseConfigured } from "@/lib/firebase";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { userProfileConverter, UserProfile } from "@/lib/models";
+import { seedUserProfile } from "@/lib/curriculumSeeder";
 import { Mail, Lock, Eye, EyeOff, Sparkles, ArrowRight, CheckCircle, Loader2 } from "lucide-react";
 
 // Google G logo standard path
@@ -78,12 +81,28 @@ export default function LoginPage() {
     }
     
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Fetch user role from Firestore profile
+      let userRole = "student";
+      if (db) {
+        const docRef = doc(db, "users", user.uid).withConverter(userProfileConverter);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          userRole = docSnap.data().role || "student";
+        }
+      }
+
       setLoginSuccess(true);
       
-      // Redirect to dashboard after showing success state
+      // Redirect based on user's role after showing success state
       setTimeout(() => {
-        router.push("/dashboard");
+        if (userRole === "company") {
+          router.push("/company-dashboard");
+        } else {
+          router.push("/dashboard");
+        }
       }, 1500);
     } catch (err: any) {
       console.error("Firebase Login Error: ", err);
@@ -105,18 +124,53 @@ export default function LoginPage() {
     setIsGoogleSubmitting(true);
     setErrors({});
 
-    if (!auth || !googleProvider) {
+    if (!auth || !db || !googleProvider) {
       setErrors((prev) => ({ ...prev, submit: "Firebase is not configured. Please set your credentials in .env.local." }));
       setIsGoogleSubmitting(false);
       return;
     }
     
     try {
-      await signInWithPopup(auth, googleProvider);
+      // 1. Authenticate with Google
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+
+      // 2. Check and provision user profile document in Firestore
+      const docRef = doc(db, "users", user.uid).withConverter(userProfileConverter);
+      const docSnap = await getDoc(docRef);
+
+      if (!docSnap.exists()) {
+        const userProfile: UserProfile = {
+          uid: user.uid,
+          email: user.email || "",
+          role: "student",
+          fullName: user.displayName || "Google User",
+          institution: "Not specified",
+          gradeLevel: "freshman",
+          subjectOfInterest: "General Study",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          profilePictureUrl: user.photoURL || "",
+          onboardingCompleted: false,
+          skillsToLearn: [],
+          interests: []
+        };
+        await setDoc(docRef, userProfile);
+
+        // Seed default CS curriculum
+        await seedUserProfile(user.uid, "compsci", user.displayName || "Google User");
+      }
+
+      const userRole = docSnap.exists() ? (docSnap.data().role || "student") : "student";
+
       setLoginSuccess(true);
       
       setTimeout(() => {
-        router.push("/dashboard");
+        if (userRole === "company") {
+          router.push("/company-dashboard");
+        } else {
+          router.push("/dashboard");
+        }
       }, 1500);
     } catch (err: any) {
       console.error("Firebase Google Login Error: ", err);

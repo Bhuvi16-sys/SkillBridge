@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const { user, notifications } = useDashboard();
   const { logout } = useAuth();
@@ -27,7 +27,18 @@ export default function Sidebar() {
   const activeNotifs = notifications.filter(n => !n.read).slice(0, 3);
 
   return (
-    <aside className="w-[280px] h-screen bg-[#0B1120]/80 backdrop-blur-xl border-r border-slate-800/50 flex flex-col transition-all duration-300 fixed left-0 top-0 z-50 text-slate-300">
+    <>
+      {/* Mobile Sidebar Backdrop Overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 lg:hidden cursor-pointer"
+          onClick={onClose}
+        />
+      )}
+
+      <aside className={`w-[280px] h-screen bg-[#0B1120]/80 backdrop-blur-xl border-r border-slate-800/50 flex flex-col transition-all duration-300 fixed left-0 top-0 z-50 text-slate-300 lg:translate-x-0 ${
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      }`}>
       <div className="p-6 pb-2">
         <Link href="/" className="flex items-center gap-3 text-2xl font-bold text-teal-400 mb-8">
           <Layers className="w-8 h-8 text-teal-400" />
@@ -139,5 +150,6 @@ export default function Sidebar() {
         )}
       </div>
     </aside>
+    </>
   );
 }

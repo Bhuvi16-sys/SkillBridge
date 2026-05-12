@@ -5,9 +5,11 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { DailyTask } from "@/types/dashboard";
+import { userProfileConverter, UserProfile } from "@/lib/models";
 
 interface UserContextType {
   user: User | null;
+  role: string | null;
   loading: boolean;
   studyHours: number;
   masteryIndex: number;
@@ -15,6 +17,10 @@ interface UserContextType {
   overallMasteryIndex: number;
   dailyTasks: DailyTask[];
   assessments: number;
+  onboardingCompleted: boolean;
+  skillsToLearn: string[];
+  interests: string[];
+  userProfile: UserProfile | null;
   refreshData: () => Promise<void>;
   logStudyHours: (hours: number) => Promise<void>;
 }
@@ -28,6 +34,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [masteryIndex, setMasteryIndex] = useState<number>(0);
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]);
   const [assessments, setAssessments] = useState<number>(0);
+  
+  // Real-time onboarding and profile fields
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean>(false);
+  const [skillsToLearn, setSkillsToLearn] = useState<string[]>([]);
+  const [interests, setInterests] = useState<string[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [role, setRole] = useState<string | null>(null);
 
   // Deprecated manual refresh logic (no longer needed because of real-time snapshot listeners)
   const refreshData = async () => {
@@ -68,15 +81,26 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (user) {
-        // Establish real-time Firestore synchronization listener
-        const userRef = doc(db!, "users", user.uid);
+        // Establish real-time Firestore synchronization listener using UserProfile converter
+        const userRef = doc(db!, "users", user.uid).withConverter(userProfileConverter);
         unsubscribeSnapshot = onSnapshot(userRef, (snapshot) => {
           if (snapshot.exists()) {
             const stats = snapshot.data();
             setStudyHours(stats.studyHours ?? 0.0);
             setMasteryIndex(stats.masteryIndex ?? 0);
-            setDailyTasks(stats.dailyTasks || []);
-            setAssessments(stats.quizzesCleared !== undefined ? stats.quizzesCleared : (stats.assessmentsCleared ?? 0));
+            // stats has type UserProfile, but dailyTasks is on stats. Since DailyTask is imported we keep it.
+            // But stats.dailyTasks can be read as any since stats is UserProfile and dailyTasks is not explicitly on it, 
+            // wait! Let's cast stats as any to avoid compilation type issues for dailyTasks
+            const rawData = stats as any;
+            setDailyTasks(rawData.dailyTasks || []);
+            setAssessments(stats.assessmentsCleared ?? 0);
+            
+            // Populate onboarding fields
+            setOnboardingCompleted(stats.onboardingCompleted ?? false);
+            setSkillsToLearn(stats.skillsToLearn || []);
+            setInterests(stats.interests || []);
+            setUserProfile(stats);
+            setRole(stats.role || null);
           } else {
             console.warn("User stats document snapshot does not exist in Firestore.");
           }
@@ -91,6 +115,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         setMasteryIndex(0);
         setDailyTasks([]);
         setAssessments(0);
+        setOnboardingCompleted(false);
+        setSkillsToLearn([]);
+        setInterests([]);
+        setUserProfile(null);
+        setRole(null);
         setLoading(false);
       }
     });
@@ -108,6 +137,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     <UserContext.Provider
       value={{
         user: currentUser,
+        role,
         loading,
         studyHours,
         masteryIndex,
@@ -115,6 +145,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         overallMasteryIndex: masteryIndex,
         dailyTasks,
         assessments,
+        onboardingCompleted,
+        skillsToLearn,
+        interests,
+        userProfile,
         refreshData,
         logStudyHours,
       }}

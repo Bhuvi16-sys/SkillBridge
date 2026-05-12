@@ -221,18 +221,26 @@ export default function SignupPage() {
         gradeLevel,
         subjectOfInterest: subjectOfInterest || "General Study",
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        profilePictureUrl: user.photoURL || "",
+        onboardingCompleted: false,
+        skillsToLearn: [],
+        interests: []
       } : {
         uid: user.uid,
         email: user.email || "",
-        role: "recruiter",
+        role: "company",
         fullName,
         companyName,
         industry,
         companySize: companySize || "1-10",
         website: website || "",
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        profilePictureUrl: user.photoURL || "",
+        onboardingCompleted: true,
+        skillsToLearn: [],
+        interests: []
       };
 
       const userDocRef = doc(db, "users", user.uid).withConverter(userProfileConverter);
@@ -245,7 +253,11 @@ export default function SignupPage() {
       setSignupSuccess(true);
       
       setTimeout(() => {
-        router.push("/dashboard");
+        if (role === "company") {
+          router.push("/company-dashboard");
+        } else {
+          router.push("/dashboard");
+        }
       }, 1800);
     } catch (err: any) {
       console.error("Firebase Registration Error: ", err);
@@ -295,7 +307,11 @@ export default function SignupPage() {
           gradeLevel: "freshman",
           subjectOfInterest: "General Study",
           createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          profilePictureUrl: user.photoURL || "",
+          onboardingCompleted: false,
+          skillsToLearn: [],
+          interests: []
         };
         await setDoc(docRef, userProfile);
 

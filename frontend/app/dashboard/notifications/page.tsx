@@ -20,9 +20,12 @@ import {
   Info,
   Flame,
   Award,
-  HelpCircle,
+  Briefcase,
   Undo2
 } from "lucide-react";
+import { useUser } from "@/context/UserContext";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 // Mock Notifications array
 const initialNotifications = [
@@ -80,12 +83,49 @@ const mockFlashcards = {
 };
 
 export default function NotificationsPage() {
+  const { user: currentUser } = useUser();
   const { 
     notifications, 
     markNotificationRead, 
     clearAllNotifications, 
     addGoal 
   } = useDashboard();
+
+  const handleAcceptConnection = async (notificationId: string, connectionId: string) => {
+    if (!currentUser?.uid || !db) return;
+    try {
+      // 1. Update the central connections record
+      const connectionRef = doc(db, "connections", connectionId);
+      await updateDoc(connectionRef, { status: "accepted" });
+
+      // 2. Update the notification record in student subcollection
+      const notificationRef = doc(db, "users", currentUser.uid, "notifications", notificationId);
+      await updateDoc(notificationRef, { status: "accepted", read: true });
+
+      triggerToast("🎉 Connected successfully! The recruiter has been notified.");
+    } catch (err) {
+      console.error("Failed to accept connection:", err);
+      triggerToast("Failed to accept connection.");
+    }
+  };
+
+  const handleDeclineConnection = async (notificationId: string, connectionId: string) => {
+    if (!currentUser?.uid || !db) return;
+    try {
+      // 1. Update the central connections record
+      const connectionRef = doc(db, "connections", connectionId);
+      await updateDoc(connectionRef, { status: "declined" });
+
+      // 2. Update the notification record in student subcollection
+      const notificationRef = doc(db, "users", currentUser.uid, "notifications", notificationId);
+      await updateDoc(notificationRef, { status: "declined", read: true });
+
+      triggerToast("Connection request declined.");
+    } catch (err) {
+      console.error("Failed to decline connection:", err);
+      triggerToast("Failed to decline connection.");
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<"all" | "unread" | "alerts" | "achieve">("all");
   
@@ -358,6 +398,9 @@ export default function NotificationsPage() {
               } else if (notif.type === "spaced") {
                 iconElement = <Clock className="w-5 h-5 text-blue-500" />;
                 cardGlow = "hover:border-blue-500/20";
+              } else if (notif.type === "connection_request") {
+                iconElement = <Briefcase className="w-5 h-5 text-teal-400" />;
+                cardGlow = "hover:border-teal-500/20";
               }
 
               return (
@@ -420,6 +463,33 @@ export default function NotificationsPage() {
                       >
                         Begin Spaced Review
                       </button>
+                    )}
+
+                    {notif.type === "connection_request" && (
+                      <div className="flex gap-2 shrink-0">
+                        {(notif as any).status === "pending" ? (
+                          <>
+                            <button
+                              onClick={() => handleAcceptConnection(notif.id, (notif as any).connectionId)}
+                              className="px-3.5 py-1.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-black rounded-lg text-[10.5px] transition-colors whitespace-nowrap"
+                            >
+                              Accept Invitation
+                            </button>
+                            <button
+                              onClick={() => handleDeclineConnection(notif.id, (notif as any).connectionId)}
+                              className="px-3.5 py-1.5 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 font-bold border border-red-500/20 rounded-lg text-[10.5px] transition-colors whitespace-nowrap"
+                            >
+                              Decline
+                            </button>
+                          </>
+                        ) : (
+                          <span className={`text-[10.5px] font-black uppercase tracking-wider ${
+                            (notif as any).status === "accepted" ? "text-emerald-400" : "text-rose-400"
+                          }`}>
+                            {(notif as any).status === "accepted" ? "✓ Accepted" : "✗ Declined"}
+                          </span>
+                        )}
+                      </div>
                     )}
 
                     {/* General Close button */}

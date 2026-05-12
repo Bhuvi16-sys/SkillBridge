@@ -7,11 +7,9 @@ import {
   Clock, 
   Target, 
   Award, 
-  TrendingUp, 
   CheckSquare, 
   Bell, 
   Lightbulb, 
-  Network, 
   Play, 
   Check, 
   Sparkles, 
@@ -20,37 +18,76 @@ import {
   Zap, 
   BookOpen, 
   CheckCircle,
-  HelpCircle,
-  Undo2,
-  Loader2
+  Loader2,
+  BrainCircuit,
+  Lock,
+  GraduationCap,
+  Trophy,
+  TrendingUp
 } from "lucide-react";
-import { 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  CartesianGrid 
-} from "recharts";
 
 import { useDashboard } from "@/context/DashboardContext";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useUser } from "@/context/UserContext";
+import { useRouter } from "next/navigation";
 import axios from "axios";
 
-const edges = [
-  { from: "algo", to: "ds" },
-  { from: "ds", to: "trees" },
-  { from: "ds", to: "graphs" },
-  { from: "graphs", to: "dp" },
-];
+
 
 export default function StudentDashboard() {
   const { loading, data: user, handleLogHours: legacyHandleLogHours } = useDashboardData();
   const stats = useUser();
+  const router = useRouter();
+
+  const isProfileIncomplete = !stats.skillsToLearn?.length || !stats.interests?.length;
+
+  // Dynamic Skill Lists and Adaptive SVG Knowledge Graph Nodes
+  const skillsList = stats.skillsToLearn && stats.skillsToLearn.length > 0 ? stats.skillsToLearn : [];
+  
+  const dynamicNodes = React.useMemo(() => {
+    if (skillsList.length > 0) {
+      return skillsList.map((skill, index) => {
+        const total = skillsList.length;
+        // Distribute nodes evenly along an oscillating wave across standard width
+        const stepX = 600 / Math.max(1, total - 1 || 1);
+        const x = total === 1 ? 400 : 100 + index * stepX;
+        const y = 110 + (index % 2 === 0 ? 35 : -35) + Math.sin(index) * 15;
+        
+        const colors = ["teal", "blue", "purple", "pink", "indigo"];
+        const color = colors[index % colors.length];
+        const progress = Math.max(30, 95 - index * 12);
+        
+        return {
+          id: `skill-${index}`,
+          name: skill,
+          x,
+          y,
+          progress,
+          color
+        };
+      });
+    } else {
+      // Fallback DSA nodes
+      return [
+        { id: "algos", name: "Algorithms", x: 120, y: 130, progress: 85, color: "teal" },
+        { id: "ds", name: "Data Structures", x: 260, y: 90, progress: 70, color: "blue" },
+        { id: "trees", name: "Trees & BST", x: 400, y: 140, progress: 60, color: "purple" },
+        { id: "graphs", name: "Graphs & Cycles", x: 540, y: 90, progress: 45, color: "pink" },
+        { id: "dp", name: "Dynamic Prog.", x: 680, y: 130, progress: 30, color: "indigo" }
+      ];
+    }
+  }, [skillsList]);
+
+  const dynamicEdges = React.useMemo(() => {
+    const list = [];
+    for (let i = 0; i < dynamicNodes.length - 1; i++) {
+      list.push({
+        source: dynamicNodes[i],
+        target: dynamicNodes[i + 1]
+      });
+    }
+    return list;
+  }, [dynamicNodes]);
 
   const handleLogHours = async (hours: number) => {
     if (!stats.user) return;
@@ -85,8 +122,7 @@ export default function StudentDashboard() {
   const [generatedPlanText, setGeneratedPlanText] = useState<string[]>([]);
   const [recoveredGoals, setRecoveredGoals] = useState<any[]>([]);
 
-  // Selected knowledge graph node ID state
-  const [selectedNodeId, setSelectedNodeId] = useState<string>("graphs");
+
 
   // Dynamic Gemini Study Tip state
   const [geminiTip, setGeminiTip] = useState<string>("Synthesizing personalized Gemini study tips...");
@@ -123,74 +159,7 @@ export default function StudentDashboard() {
     return () => { active = false; };
   }, [stats.user, user.masteryIndex, weakTopics]);
 
-  // Dynamically calculate node values and statuses from real database states (weakTopics & skills)
-  const dynamicNodes = React.useMemo(() => {
-    return [
-      { id: "algo", label: "Algorithms", x: 60, y: 130, desc: "Asymptotic Analysis, Search, Sort" },
-      { id: "ds", label: "Data Structures", x: 190, y: 130, desc: "Arrays, Lists, Stacks, Queues" },
-      { id: "trees", label: "Trees & BST", x: 320, y: 70, desc: "In-order, Pre-order, BST operations" },
-      { id: "graphs", label: "Graphs & DFS", x: 320, y: 190, desc: "BFS/DFS, Topological Sort, Dijkstra" },
-      { id: "dp", label: "Dynamic Prog.", x: 450, y: 190, desc: "Memoization, Tabulation, Knapsack" },
-    ].map((node) => {
-      // 1. Try to find a matching weakTopic from the live database
-      const liveWeakTopic = weakTopics?.find((t) => {
-        const name = t.name.toLowerCase();
-        const label = node.label.toLowerCase();
-        return name.includes(label) || label.includes(name) || 
-               (node.id === "dp" && name.includes("programming")) ||
-               (node.id === "graphs" && name.includes("graph"));
-      });
 
-      if (liveWeakTopic) {
-        // Map accuracy to node value
-        const val = liveWeakTopic.accuracy ?? 10;
-        const status = val >= 80 ? "mastered" : val >= 50 ? "improving" : "weak";
-        return { ...node, value: val, status };
-      }
-
-      // 2. Derive dynamic initial states relative to overall user mastery
-      const baseMastery = user.masteryIndex || 0;
-      let calculatedValue = 0;
-      if (baseMastery > 0) {
-        const scaleFactor = node.id === "algo" ? 1.2 : node.id === "ds" ? 1.0 : node.id === "trees" ? 0.7 : 0.4;
-        calculatedValue = Math.min(100, Math.max(10, Math.round(baseMastery * scaleFactor)));
-      }
-      const status = calculatedValue >= 80 ? "mastered" : calculatedValue >= 50 ? "improving" : "weak";
-
-      return { ...node, value: calculatedValue, status };
-    });
-  }, [weakTopics, user.masteryIndex]);
-
-  const selectedNode = React.useMemo(() => {
-    return dynamicNodes.find((n) => n.id === selectedNodeId) || dynamicNodes[3];
-  }, [dynamicNodes, selectedNodeId]);
-
-  // Dynamically calculate study distribution based on live user.studyHours from database
-  const studyHoursData = React.useMemo(() => {
-    const total = user.studyHours || 0.0;
-    return [
-      { day: "Mon", hours: parseFloat((total * 0.1).toFixed(1)) },
-      { day: "Tue", hours: parseFloat((total * 0.15).toFixed(1)) },
-      { day: "Wed", hours: parseFloat((total * 0.2).toFixed(1)) },
-      { day: "Thu", hours: parseFloat((total * 0.05).toFixed(1)) },
-      { day: "Fri", hours: parseFloat((total * 0.12).toFixed(1)) },
-      { day: "Sat", hours: parseFloat((total * 0.23).toFixed(1)) },
-      { day: "Sun", hours: parseFloat((total * 0.15).toFixed(1)) },
-    ];
-  }, [user.studyHours]);
-
-  // Dynamically calculate weekly mastery curves scaled to live user.masteryIndex from database
-  const weeklyProgressData = React.useMemo(() => {
-    const currentMastery = user.masteryIndex || 0;
-    return [
-      { name: "Week 1", score: Math.round(currentMastery * 0.3), baseline: 0 },
-      { name: "Week 2", score: Math.round(currentMastery * 0.5), baseline: 0 },
-      { name: "Week 3", score: Math.round(currentMastery * 0.4), baseline: 0 },
-      { name: "Week 4", score: Math.round(currentMastery * 0.7), baseline: 0 },
-      { name: "Week 5", score: Math.round(currentMastery * 0.85), baseline: 0 },
-      { name: "Week 6", score: currentMastery, baseline: 0 },
-    ];
-  }, [user.masteryIndex]);
 
   // Compute tasks completions from Firebase dailyTasks response via stats
   const dailyTasks = stats.dailyTasks || [];
@@ -201,6 +170,20 @@ export default function StudentDashboard() {
   const [loggerTab, setLoggerTab] = useState<"study" | "quiz">("study");
   const [logHours, setLogHours] = useState<number>(1.0);
   const [logTopic, setLogTopic] = useState<string>("");
+
+  const focusTopics = React.useMemo(() => {
+    if (skillsList && skillsList.length > 0) {
+      return [...skillsList];
+    } else {
+      return weakTopics ? weakTopics.map(t => t.name) : [];
+    }
+  }, [skillsList, weakTopics]);
+
+  React.useEffect(() => {
+    if (focusTopics.length > 0 && !logTopic) {
+      setLogTopic(focusTopics[0]);
+    }
+  }, [focusTopics, logTopic]);
   const [quizCorrect, setQuizCorrect] = useState<number>(8);
   const [quizTotal, setQuizTotal] = useState<number>(10);
   const [logSuccess, setLogSuccess] = useState<string | null>(null);
@@ -359,7 +342,7 @@ export default function StudentDashboard() {
               Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-400">{user.name}</span>
             </h2>
             <p className="text-sm text-slate-400 mt-2 max-w-xl">
-              Your recovery path is currently focused on mastering <strong className="text-white">{weakTopics[0]?.name || "Core Concepts"}</strong>. You are progressing 15% faster than last week!
+              Your recovery path is currently focused on mastering <strong className="text-white">{skillsList?.[0] || weakTopics[0]?.name || "Core Concepts"}</strong>. You are progressing 15% faster than last week!
             </p>
           </div>
 
@@ -378,8 +361,35 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      {/* 2. Stats KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {isProfileIncomplete ? (
+        <div className="bg-[#1e293b]/30 backdrop-blur-md border border-slate-800 rounded-2xl p-12 text-center shadow-xl relative overflow-hidden flex flex-col items-center justify-center min-h-[400px]">
+          {/* Ambient glowing background blobs */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-teal-500/5 rounded-full blur-[80px] -z-10 pointer-events-none"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] bg-purple-500/5 rounded-full blur-[70px] -z-10 pointer-events-none"></div>
+
+          <div className="p-4 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 mb-6 shadow-[0_0_20px_rgba(20,184,166,0.15)] animate-bounce shrink-0">
+            <Lock className="w-8 h-8" />
+          </div>
+
+          <h3 className="text-xl font-extrabold text-white tracking-tight mb-3">
+            Dashboard Data Locked
+          </h3>
+
+          <p className="text-sm text-slate-400 max-w-xl leading-relaxed mb-8">
+            Our AI needs to know your focus areas to generate your personalized knowledge graphs, dynamic daily tasks, and study analytics. Complete your onboarding to initialize your workspace.
+          </p>
+
+          <button
+            onClick={() => router.push("/dashboard/profile")}
+            className="bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-400 hover:to-blue-400 text-slate-950 font-black px-6 py-3 rounded-xl text-xs transition-all shadow-[0_0_15px_rgba(20,184,166,0.2)] flex items-center gap-1.5 animate-pulse"
+          >
+            Configure Skills & Interests
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* 2. Stats KPI Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         
         {/* Card 1: Study Time */}
         <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800 p-6 rounded-2xl hover:border-slate-700/80 hover:shadow-xl transition-all duration-300 group">
@@ -459,6 +469,244 @@ export default function StudentDashboard() {
 
       </div>
 
+      {/* 3. Weekly Diagnostics & Arena Test Progress Card */}
+      <div className="bg-gradient-to-br from-slate-900/60 via-slate-950/40 to-slate-900/60 backdrop-blur-xl border border-slate-800/80 p-6 rounded-3xl relative overflow-hidden text-left space-y-6 shadow-xl">
+        {/* Ambient neon backdrop light */}
+        <div className="absolute top-[-20%] right-[-10%] w-[250px] h-[250px] bg-teal-500/10 rounded-full blur-[80px] pointer-events-none"></div>
+        <div className="absolute bottom-[-20%] left-[-10%] w-[200px] h-[200px] bg-purple-500/5 rounded-full blur-[70px] pointer-events-none"></div>
+
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-800/60">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-teal-500/10 text-teal-400 border border-teal-500/20 rounded-2xl shadow-[0_0_15px_rgba(20,184,166,0.1)]">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Active Diagnostic Metric</span>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                Weekly Test Progress Tracker
+              </h3>
+            </div>
+          </div>
+          <button 
+            onClick={() => router.push("/dashboard/assistant?autoLaunch=true")}
+            className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold rounded-xl text-xs transition-all shadow-[0_0_15px_rgba(20,184,166,0.15)] flex items-center gap-1.5"
+          >
+            Launch Arena Test <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Card Body Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+          
+          {/* Progress Circular Meter (Left Column) */}
+          <div className="flex flex-col items-center justify-center p-4 bg-slate-950/40 border border-slate-900 rounded-2xl text-center relative">
+            <div className="relative w-28 h-28 flex items-center justify-center">
+              {/* SVG circular track */}
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  stroke="rgba(51, 65, 85, 0.4)"
+                  strokeWidth="8"
+                  fill="transparent"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  stroke="url(#tealGlowGradient)"
+                  strokeWidth="8"
+                  fill="transparent"
+                  strokeDasharray="251.2"
+                  strokeDashoffset={251.2 - (251.2 * Math.min(100, (((stats.assessments || 0) % 3) / 3) * 100)) / 100}
+                  strokeLinecap="round"
+                  className="transition-all duration-1000 ease-out"
+                />
+                <defs>
+                  <linearGradient id="tealGlowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#14b8a6" />
+                    <stop offset="100%" stopColor="#3b82f6" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              {/* Inner Label */}
+              <div className="absolute flex flex-col items-center">
+                <span className="text-xl font-black text-white">{((stats.assessments || 0) % 3)}/3</span>
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">This Week</span>
+              </div>
+            </div>
+            
+            <p className="text-[11px] font-semibold text-slate-400 mt-4">
+              {((stats.assessments || 0) % 3) >= 3 
+                ? "🎉 Weekly test goal accomplished!" 
+                : `${3 - ((stats.assessments || 0) % 3)} tests remaining to secure Rank multiplier.`}
+            </p>
+          </div>
+
+          {/* Test Performance Breakdown & Details (Middle Column) */}
+          <div className="space-y-4">
+            <div className="p-4 bg-slate-950/30 border border-slate-900 rounded-xl space-y-2">
+              <span className="text-[10px] font-extrabold text-slate-500 uppercase">Primary Test Subject</span>
+              <p className="text-xs font-bold text-teal-400">
+                {skillsList?.[0] || "Adaptive Algorithms"}
+              </p>
+              <div className="w-full bg-slate-900 h-1 rounded-full overflow-hidden mt-1">
+                <div className="bg-teal-500 h-full w-[70%]"></div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-950/30 border border-slate-900 rounded-xl space-y-2">
+              <span className="text-[10px] font-extrabold text-slate-500 uppercase">Competitive Rank Bracket</span>
+              <p className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                <Trophy className="w-3.5 h-3.5" /> High Performer Tier
+              </p>
+              <p className="text-[10px] text-slate-400 leading-snug">Rankings scale instantly based on tests completed successfully.</p>
+            </div>
+          </div>
+
+          {/* Dynamic AI Study Recommendations & Insights (Right Column) */}
+          <div className="p-5 bg-slate-950/50 border border-slate-900 rounded-2xl flex flex-col justify-between h-full min-h-[160px]">
+            <div className="space-y-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[9px] font-black uppercase text-blue-400 flex items-center gap-1 w-fit">
+                <Sparkles className="w-3 h-3 animate-pulse" /> Weekly Insight
+              </span>
+              <h4 className="text-xs font-bold text-slate-200">Consistency is Key to Ranking</h4>
+              <p className="text-[10.5px] text-slate-400 leading-relaxed">
+                Completing tests not only unlocks premium diagnostic rewards but also guarantees your authenticated user placement at the top of the Arena Leaderboard. Keep pushing your boundary!
+              </p>
+            </div>
+            <div className="pt-3 border-t border-slate-900 text-[10px] font-bold text-slate-500 flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-teal-400" />
+              <span>Diagnostic accuracy increased by 12% today</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* Interactive SVG Knowledge Graph Card */}
+      <div className="bg-slate-900/20 border border-slate-800 p-6 rounded-3xl relative overflow-hidden text-left space-y-4">
+        {/* Glow aesthetics */}
+        <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-teal-500/5 rounded-full blur-[90px] -z-10 pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-purple-500/5 rounded-full blur-[70px] -z-10 pointer-events-none"></div>
+
+        <div className="flex justify-between items-center pb-2 border-b border-slate-800/60">
+          <div>
+            <span className="text-[9px] text-slate-500 font-black block uppercase tracking-wider">Skill Bridge Visualizer</span>
+            <h3 className="text-sm font-black text-white flex items-center gap-2">
+              <BrainCircuit className="w-4.5 h-4.5 text-teal-400 animate-pulse" /> Interactive Skill Knowledge Graph
+            </h3>
+          </div>
+          <span className="px-2.5 py-1 bg-teal-500/10 text-teal-400 text-[10px] font-black border border-teal-500/15 rounded-lg flex items-center gap-1">
+            <Sparkles className="w-3.5 h-3.5" /> Live Schema Sync
+          </span>
+        </div>
+
+        <div className="relative bg-slate-950/80 border border-slate-850 rounded-2xl p-4 overflow-hidden shadow-inner flex items-center justify-center min-h-[220px]">
+          {/* Animated network grid bg pattern */}
+          <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] opacity-30"></div>
+          
+          <svg className="w-full max-w-[800px] h-[180px] relative z-10" viewBox="0 0 800 180" preserveAspectRatio="xMidYMid meet">
+            {/* Defs for glow filter effects and arrows */}
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="18" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="#475569" />
+              </marker>
+            </defs>
+
+            {/* Render connection edges dynamically */}
+            {dynamicEdges.map((edge, idx) => (
+              <motion.line
+                key={`edge-${idx}`}
+                x1={edge.source.x}
+                y1={edge.source.y}
+                x2={edge.target.x}
+                y2={edge.target.y}
+                stroke="#334155"
+                strokeWidth="2.5"
+                strokeDasharray="4 4"
+                markerEnd="url(#arrow)"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 0.8, delay: idx * 0.1 }}
+              />
+            ))}
+
+            {/* Render dynamic nodes */}
+            {dynamicNodes.map((node, idx) => {
+              const themeColor = 
+                node.color === "teal" ? "rgba(20, 184, 166, 0.9)" :
+                node.color === "blue" ? "rgba(59, 130, 246, 0.9)" :
+                node.color === "purple" ? "rgba(168, 85, 247, 0.9)" :
+                node.color === "pink" ? "rgba(236, 72, 153, 0.9)" : "rgba(99, 102, 241, 0.9)";
+
+              return (
+                <g key={node.id} className="cursor-pointer group">
+                  {/* Outer Pulsing Glow */}
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r="15"
+                    fill="transparent"
+                    stroke={themeColor}
+                    strokeWidth="1"
+                    strokeOpacity="0.4"
+                    className="animate-pulse"
+                  />
+
+                  {/* Core Node Circle */}
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r="10"
+                    fill="#0f172a"
+                    stroke={themeColor}
+                    strokeWidth="3"
+                    className="transition-all duration-300 group-hover:scale-110"
+                  />
+
+                  {/* Inner Node Circle */}
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r="6"
+                    fill={themeColor}
+                    opacity="0.8"
+                  />
+
+                  {/* Node Label Text */}
+                  <text
+                    x={node.x}
+                    y={node.y + 24}
+                    textAnchor="middle"
+                    fill="#f8fafc"
+                    fontSize="11"
+                    fontWeight="bold"
+                    className="select-none transition-all duration-300 group-hover:fill-teal-300 drop-shadow-md"
+                  >
+                    {node.name}
+                  </text>
+
+                  {/* Progress Bubble overlay */}
+                  <text
+                    x={node.x}
+                    y={node.y - 16}
+                    textAnchor="middle"
+                    fill="#14b8a6"
+                    fontSize="9"
+                    fontWeight="black"
+                    className="select-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  >
+                    {node.progress}%
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </div>
+
       {/* Dynamic Activity Progression Logger (Premium Glass Widget) */}
       <div className="bg-[#1e293b]/20 backdrop-blur-md border border-slate-800/80 p-6 rounded-2xl shadow-xl space-y-4">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -508,8 +756,8 @@ export default function StudentDashboard() {
                 onChange={(e) => setLogTopic(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 text-xs px-3 py-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-teal-500 transition-colors"
               >
-                {weakTopics.map(t => (
-                  <option key={t.id} value={t.name}>{t.name}</option>
+                {focusTopics.map((topic, idx) => (
+                  <option key={idx} value={topic}>{topic}</option>
                 ))}
                 <option value="General Study">General Study</option>
               </select>
@@ -548,10 +796,10 @@ export default function StudentDashboard() {
               <select
                 value={logTopic}
                 onChange={(e) => setLogTopic(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-850 hover:border-slate-800 text-xs px-3 py-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-teal-500 transition-colors"
+                className="w-full bg-[#0d1527] border border-slate-850 hover:border-slate-800 text-xs px-3 py-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-teal-500 transition-colors"
               >
-                {weakTopics.map(t => (
-                  <option key={t.id} value={t.name}>{t.name}</option>
+                {focusTopics.map((topic, idx) => (
+                  <option key={idx} value={topic}>{topic}</option>
                 ))}
                 <option value="General Study">General Study</option>
               </select>
@@ -712,9 +960,16 @@ export default function StudentDashboard() {
         <div className="lg:col-span-3 bg-[#1e293b]/30 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
           <div>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Lightbulb className="w-5 h-5 text-teal-400" /> AI Suggestions & Resources
-              </h3>
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Lightbulb className="w-5 h-5 text-teal-400" /> AI Suggestions & Resources
+                </h3>
+                {stats.interests && stats.interests.length > 0 && (
+                  <p className="text-[10px] text-teal-400/80 font-bold mt-1.5 flex items-center gap-1 animate-fade-in">
+                    🎯 Curated specifically for your interest in {stats.interests.join(", ")}
+                  </p>
+                )}
+              </div>
               <span className="text-[10px] text-slate-500 font-semibold tracking-wider uppercase">Compiled Live</span>
             </div>
 
@@ -785,286 +1040,7 @@ export default function StudentDashboard() {
 
       </div>
 
-      {/* Grid: Interactive Knowledge Graph & Progress Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        
-        {/* 5. Interactive Knowledge Graph (ColSpan: 3) */}
-        <div className="lg:col-span-3 bg-[#1e293b]/30 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-          
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Network className="w-5 h-5 text-teal-400" /> Mastery Knowledge Graph
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Custom visual node curriculum map</p>
-            </div>
-            <span className="text-[10px] font-bold px-2 py-1 bg-slate-800 rounded-lg text-slate-400">Interactive Node Map</span>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-center">
-            
-            {/* SVG Render (Col: 3) */}
-            <div className="md:col-span-3 bg-slate-950/60 rounded-2xl border border-slate-850/80 p-4 relative flex items-center justify-center min-h-[260px]">
-              
-              {/* Custom CSS Animation for Edge Pulsing */}
-              <style>{`
-                @keyframes pulseEdge {
-                  0% { stroke-dashoffset: 24; opacity: 0.4; }
-                  50% { opacity: 0.8; }
-                  100% { stroke-dashoffset: 0; opacity: 0.4; }
-                }
-                .pulse-path {
-                  stroke-dasharray: 6, 4;
-                  animation: pulseEdge 12s linear infinite;
-                }
-              `}</style>
-
-              <svg className="w-full h-full max-w-[480px] aspect-[500/240]" viewBox="0 0 500 240">
-                {/* SVG Connections/Edges */}
-                {edges.map((edge, idx) => {
-                  const fromNode = dynamicNodes.find(n => n.id === edge.from);
-                  const toNode = dynamicNodes.find(n => n.id === edge.to);
-                  if (!fromNode || !toNode) return null;
-                  
-                  const isHighlighted = selectedNodeId === fromNode.id || selectedNodeId === toNode.id;
-
-                  return (
-                    <g key={idx}>
-                      {/* Highlighted underlay glow */}
-                      {isHighlighted && (
-                        <line 
-                          x1={fromNode.x} y1={fromNode.y} 
-                          x2={toNode.x} y2={toNode.y} 
-                          stroke="#14b8a6" 
-                          strokeWidth="4" 
-                          strokeLinecap="round"
-                          opacity="0.25"
-                          className="blur-sm"
-                        />
-                      )}
-                      {/* Interactive dashed edge */}
-                      <line 
-                        x1={fromNode.x} y1={fromNode.y} 
-                        x2={toNode.x} y2={toNode.y} 
-                        stroke={isHighlighted ? "#2dd4bf" : "#334155"} 
-                        strokeWidth="1.5" 
-                        strokeLinecap="round"
-                        className="pulse-path"
-                      />
-                    </g>
-                  );
-                })}
-
-                {/* SVG Interactive Nodes */}
-                {dynamicNodes.map((node) => {
-                  const isActive = selectedNodeId === node.id;
-                  
-                  // Color codes for statuses
-                  const nodeColor = 
-                    node.status === "mastered" ? "#14b8a6" : 
-                    node.status === "improving" ? "#3b82f6" : "#f43f5e";
-
-                  return (
-                    <g 
-                      key={node.id} 
-                      className="cursor-pointer group"
-                      onClick={() => setSelectedNodeId(node.id)}
-                    >
-                      {/* Floating hover node ring */}
-                      <circle 
-                        cx={node.x} cy={node.y} 
-                        r={isActive ? "20" : "15"} 
-                        fill="transparent" 
-                        stroke={nodeColor} 
-                        strokeWidth="1" 
-                        strokeDasharray={isActive ? "4,2" : "0"}
-                        opacity={isActive ? "1" : "0"} 
-                        className="transition-all duration-300 animate-spin"
-                        style={{ transformOrigin: `${node.x}px ${node.y}px`, animationDuration: "10s" }}
-                      />
-                      
-                      {/* Master Node Circle */}
-                      <circle 
-                        cx={node.x} cy={node.y} 
-                        r="12" 
-                        fill={isActive ? nodeColor : "#090d16"} 
-                        stroke={nodeColor} 
-                        strokeWidth="2.5" 
-                        className="transition-all duration-300 group-hover:scale-110 shadow-lg"
-                        style={{ transformOrigin: `${node.x}px ${node.y}px` }}
-                      />
-
-                      {/* Sparkle node indicators for weak topics */}
-                      {node.status === "weak" && (
-                        <circle 
-                          cx={node.x + 8} cy={node.y - 8} 
-                          r="4" 
-                          fill="#f43f5e" 
-                          className="animate-ping" 
-                        />
-                      )}
-
-                      {/* Small node letter indicator */}
-                      <text 
-                        x={node.x} y={node.y + 4} 
-                        fill={isActive ? "#090d16" : "#ffffff"} 
-                        fontSize="10" 
-                        fontWeight="black" 
-                        textAnchor="middle"
-                        className="select-none pointer-events-none"
-                      >
-                        {node.label.substring(0, 1)}
-                      </text>
-
-                      {/* Dynamic Text Label */}
-                      <text 
-                        x={node.x} y={node.y + (node.id === "trees" ? -20 : 25)} 
-                        fill={isActive ? "#ffffff" : "#94a3b8"} 
-                        fontSize="9.5" 
-                        fontWeight={isActive ? "bold" : "medium"} 
-                        textAnchor="middle"
-                        className="select-none pointer-events-none transition-colors"
-                      >
-                        {node.label}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-            </div>
-
-            {/* Selected Node Inspector Pane (Col: 2) */}
-            <div className="md:col-span-2 space-y-4">
-              <AnimatePresence mode="wait">
-                {selectedNode ? (
-                  <motion.div
-                    key={selectedNode.id}
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    className="p-4 bg-slate-950/80 rounded-xl border border-slate-850 flex flex-col justify-between h-full"
-                  >
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 
-                            selectedNode.status === "mastered" ? "#14b8a6" : 
-                            selectedNode.status === "improving" ? "#3b82f6" : "#f43f5e"
-                          }}></span>
-                          {selectedNode.label}
-                        </h4>
-                        <span className="text-[10px] font-bold text-slate-400 capitalize">
-                          {selectedNode.status}
-                        </span>
-                      </div>
-                      
-                      <p className="text-[10.5px] text-slate-400 leading-relaxed mb-4">
-                        {selectedNode.desc}
-                      </p>
-
-                      <div className="mb-4">
-                        <div className="flex justify-between text-xs mb-1.5 text-slate-300 font-semibold">
-                          <span>Knowledge Mastery</span>
-                          <span>{selectedNode.value}%</span>
-                        </div>
-                        <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full rounded-full" 
-                            style={{ 
-                              width: `${selectedNode.value}%`,
-                              backgroundColor: 
-                                selectedNode.status === "mastered" ? "#14b8a6" : 
-                                selectedNode.status === "improving" ? "#3b82f6" : "#f43f5e"
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 pt-2 border-t border-slate-900">
-                      {selectedNode.status === "weak" ? (
-                        <button 
-                          onClick={() => handleGeneratePlan(selectedNode.label)}
-                          className="w-full bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-bold py-2 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5"
-                        >
-                          <Sparkles className="w-3.5 h-3.5" /> Core Weakness: Repair Node
-                        </button>
-                      ) : (
-                        <button className="w-full bg-slate-850 hover:bg-slate-800 text-slate-300 border border-slate-700 font-semibold py-2 rounded-lg text-xs transition-colors flex items-center justify-center gap-1">
-                          Review Concepts
-                        </button>
-                      )}
-                    </div>
-                  </motion.div>
-                ) : (
-                  <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-850 border-dashed text-center py-10 text-slate-500 text-xs">
-                    <HelpCircle className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                    Tap on any node to analyze concept metrics
-                  </div>
-                )}
-              </AnimatePresence>
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* 6. Technical Progress & Hours Charts (ColSpan: 2) */}
-        <div className="lg:col-span-2 space-y-6 flex flex-col">
-          
-          {/* Chart A: Line Progress Analytics */}
-          <div className="bg-[#1e293b]/30 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl flex-1 flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-teal-400" /> Mastery Progress Curve
-              </h3>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase">Overall Trend</span>
-            </div>
-
-            <div className="h-[120px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weeklyProgressData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} />
-                  <YAxis domain={[40, 100]} stroke="#64748b" fontSize={9} tickLine={false} />
-                  <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b" }} />
-                  <Area type="monotone" dataKey="score" stroke="#14b8a6" strokeWidth={2} fillOpacity={1} fill="url(#colorScore)" name="Mastery Index" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Chart B: Study Hours Distribution */}
-          <div className="bg-[#1e293b]/30 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl flex-1 flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-400" /> Daily Study Distribution
-              </h3>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase">Daily Hours</span>
-            </div>
-
-            <div className="h-[120px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={studyHoursData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                  <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-                  <XAxis dataKey="day" stroke="#64748b" fontSize={9} tickLine={false} />
-                  <YAxis stroke="#64748b" fontSize={9} tickLine={false} />
-                  <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #1e293b" }} cursor={{ fill: "#1e293b", opacity: 0.2 }} />
-                  <Bar dataKey="hours" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Hours" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-        </div>
-
-      </div>
 
       {/* Grid: Daily Tasks & Activity notifications (with streak heat points) */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
@@ -1244,7 +1220,8 @@ export default function StudentDashboard() {
         </div>
 
       </div>
-
+      </>
+      )}
     </div>
   );
 }

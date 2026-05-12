@@ -84,6 +84,7 @@ export interface Competitor {
   name: string;
   xp: number;
   cheers: number;
+  assessmentsCleared?: number;
 }
 
 export interface DashboardContextProps {
@@ -308,12 +309,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       const items: Competitor[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.role === "student" || !data.role) {
+        if (doc.id && (data.role === "student" || !data.role)) {
           items.push({
             id: doc.id,
             name: data.fullName || "SkillBridge Competitor",
             xp: data.xp || 0,
-            cheers: data.cheers || 0
+            cheers: data.cheers || 0,
+            assessmentsCleared: data.assessmentsCleared !== undefined ? data.assessmentsCleared : (data.quizzesCleared ?? 0)
           });
         }
       });
@@ -324,12 +326,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         const items: Competitor[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
-          if (data.role === "student" || !data.role) {
+          if (doc.id && (data.role === "student" || !data.role)) {
             items.push({
               id: doc.id,
               name: data.fullName || "SkillBridge Competitor",
               xp: data.xp || 0,
-              cheers: data.cheers || 0
+              cheers: data.cheers || 0,
+              assessmentsCleared: data.assessmentsCleared !== undefined ? data.assessmentsCleared : (data.quizzesCleared ?? 0)
             });
           }
         });

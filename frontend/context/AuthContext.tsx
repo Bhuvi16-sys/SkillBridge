@@ -25,6 +25,7 @@ export interface UserProfile {
 interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
+  role: string | null;
   loading: boolean;
   logout: () => Promise<void>;
 }
@@ -34,6 +35,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -53,17 +55,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const docSnap = await getDoc(docRef);
           
           if (docSnap.exists()) {
-            setUserProfile(docSnap.data() as UserProfile);
+            const profileData = docSnap.data() as UserProfile;
+            setUserProfile(profileData);
+            setRole(profileData.role || null);
           } else {
             // User exists in Auth but not profiles (e.g. freshly logged in with Google or edge cases)
             setUserProfile(null);
+            setRole(null);
           }
         } catch (error) {
           console.error("Error fetching user profile from Firestore:", error);
           setUserProfile(null);
+          setRole(null);
         }
       } else {
         setUserProfile(null);
+        setRole(null);
       }
       setLoading(false);
     });
@@ -87,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading, logout }}>
+    <AuthContext.Provider value={{ user, userProfile, role, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );

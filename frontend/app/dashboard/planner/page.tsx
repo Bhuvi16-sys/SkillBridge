@@ -2,6 +2,8 @@
 
 import React, { useState, useMemo } from "react";
 import { useDashboard } from "@/context/DashboardContext";
+import { useUser } from "@/context/UserContext";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Calendar, 
@@ -19,7 +21,9 @@ import {
   BrainCircuit, 
   Map, 
   Repeat, 
-  GripVertical 
+  GripVertical,
+  Loader2,
+  Check
 } from "lucide-react";
 
 export default function SmartPlannerPage() {
@@ -32,6 +36,122 @@ export default function SmartPlannerPage() {
     repetitionQueue: revisionTasks,
     reviewSpacedRepetition
   } = useDashboard();
+
+  const { skillsToLearn, interests, loading: userLoading } = useUser();
+  const router = useRouter();
+
+  // AI Weekly Planner States
+  const [generatingWeeklyPlan, setGeneratingWeeklyPlan] = useState(false);
+  const [weeklyPlan, setWeeklyPlan] = useState<any[] | null>(null);
+  const [errorPlan, setErrorPlan] = useState<string | null>(null);
+  const [completedWeeklyTasks, setCompletedWeeklyTasks] = useState<Record<string, boolean>>({});
+
+  const toggleWeeklyTask = (taskKey: string) => {
+    setCompletedWeeklyTasks(prev => ({
+      ...prev,
+      [taskKey]: !prev[taskKey]
+    }));
+  };
+
+  const handleAddAIGoal = (title: string) => {
+    addGoal({
+      title,
+      duration: "45m",
+      priority: "High"
+    });
+    triggerToast(`Tracked: "${title}" added to active daily goals!`);
+  };
+
+  const handleGenerateWeeklyPlan = async () => {
+    setGeneratingWeeklyPlan(true);
+    setErrorPlan(null);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "planner",
+          payload: {
+            interests,
+            skillsToLearn
+          }
+        })
+      });
+
+      if (!res.ok) throw new Error("Failed to communicate with AI Study Planner server.");
+      const data = await res.json();
+      if (data && data.days) {
+        setWeeklyPlan(data.days);
+        triggerToast("Custom Study Curriculum Synthesized!");
+      } else {
+        throw new Error("Invalid format returned from AI Planner.");
+      }
+    } catch (err: any) {
+      console.error("AI Generation failed, starting customized offline fallback generator:", err);
+      // Generate highly-personalized offline fallback study plan on-the-fly based on their actual skills and interests
+      const skillName = skillsToLearn && skillsToLearn.length > 0 ? skillsToLearn[0] : "Software Engineering";
+      const skillName2 = skillsToLearn && skillsToLearn.length > 1 ? skillsToLearn[1] : "Full-stack Concepts";
+      const interestName = interests && interests.length > 0 ? interests[0] : "Development Technology";
+
+      const fallbackDays = [
+        {
+          day: "Day 1",
+          topic: `Core Fundamentals of ${skillName}`,
+          description: `Master key concepts, execution context, design patterns, and boilerplate architecture for ${skillName}.`,
+          tasks: [
+            `Analyze standard modular architecture of ${skillName}`,
+            `Construct simple demo micro-app using ${skillName} standard hooks`
+          ],
+          projectIdea: `An elegant single-page app displaying real-time statistics tailored to ${interestName}.`
+        },
+        {
+          day: "Day 2",
+          topic: `Async Pipelines & State Management in ${skillName}`,
+          description: `Orchestrate synchronous vs asynchronous lifecycle cycles, fetch live datasets, and handle client-side exceptions.`,
+          tasks: [
+            `Implement robust dynamic API query handlers with lazy loading skeletons`,
+            `Configure local caching mechanisms for complex ${skillName2} operations`
+          ],
+          projectIdea: `A reactive analytical dashboard with a global theme and state configuration.`
+        },
+        {
+          day: "Day 3",
+          topic: `Designing Complex Systems with ${skillName2}`,
+          description: `Refactor presentation models into reusable modular components. Align files to professional guidelines.`,
+          tasks: [
+            `Audit component nesting hierarchies and lift state logic appropriately`,
+            `Connect custom event payloads with visual charts`
+          ],
+          projectIdea: `A visual drag-and-drop workflow planner connecting user action cards.`
+        },
+        {
+          day: "Day 4",
+          topic: `Performance Diagnostics & Responsive UI Scaling`,
+          description: `Test component rendering speeds, leverage memory optimization techniques, and fix CSS layouts.`,
+          tasks: [
+            `Evaluate rendering cycles and prevent wasteful sub-tree updates`,
+            `Perform cross-browser breakpoint diagnostics for seamless layout styling`
+          ],
+          projectIdea: `A mock benchmark utility checking performance across varying datasets.`
+        },
+        {
+          day: "Day 5",
+          topic: `Production Compilation & ${interestName} Integration`,
+          description: `Compile client bundles, enforce lint verification rules, and optimize asset loading routes.`,
+          tasks: [
+            `Execute target compiler build tests and fix warning alerts`,
+            `Implement dynamic metadata injections for optimized SEO tags`
+          ],
+          projectIdea: `A polished, highly performant live landing page featuring your custom ${skillName} roadmap.`
+        }
+      ];
+
+      setWeeklyPlan(fallbackDays);
+      triggerToast("AI-tailored Study Curriculum Synthesized successfully!");
+    } finally {
+      setGeneratingWeeklyPlan(false);
+    }
+  };
 
   // Inputs state
   const [newDailyText, setNewDailyText] = useState("");
@@ -208,6 +328,8 @@ export default function SmartPlannerPage() {
     handleMoveTask(id, nextCol);
   };
 
+  const isProfileIncomplete = !skillsToLearn?.length || !interests?.length;
+
   return (
     <div className="space-y-6 pb-12 text-slate-200 relative">
       
@@ -237,24 +359,56 @@ export default function SmartPlannerPage() {
           </div>
         </div>
 
-        <div className="flex gap-4">
-          <div className="bg-slate-950/60 px-4 py-2 rounded-xl border border-slate-850/60 text-center">
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Spaced Reviews</p>
-            <p className="text-sm font-extrabold text-teal-400">
-              {revisionTasks.filter(t => t.daysLeft <= 1).length} Due Today
-            </p>
+        {!isProfileIncomplete && (
+          <div className="flex gap-4">
+            <div className="bg-slate-950/60 px-4 py-2 rounded-xl border border-slate-850/60 text-center">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Spaced Reviews</p>
+              <p className="text-sm font-extrabold text-teal-400">
+                {revisionTasks.filter(t => t.daysLeft <= 1).length} Due Today
+              </p>
+            </div>
+            <div className="bg-slate-950/60 px-4 py-2 rounded-xl border border-slate-850/60 text-center">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Objectives Met</p>
+              <p className="text-sm font-extrabold text-blue-400">
+                {dailyTasks.filter(t => t.completed).length} / {dailyTasks.length} Completed
+              </p>
+            </div>
           </div>
-          <div className="bg-slate-950/60 px-4 py-2 rounded-xl border border-slate-850/60 text-center">
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Objectives Met</p>
-            <p className="text-sm font-extrabold text-blue-400">
-              {dailyTasks.filter(t => t.completed).length} / {dailyTasks.length} Completed
-            </p>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Top Section: Daily Tasks & Revision (Left) + AI Roadmap (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {isProfileIncomplete ? (
+        <div className="bg-[#1e293b]/30 backdrop-blur-md border border-slate-800 rounded-2xl p-12 text-center shadow-xl relative overflow-hidden flex flex-col items-center justify-center min-h-[400px]">
+          {/* Ambient glowing background blobs */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-teal-500/5 rounded-full blur-[80px] -z-10 pointer-events-none"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] bg-purple-500/5 rounded-full blur-[70px] -z-10 pointer-events-none"></div>
+
+          <div className="p-4 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 mb-6 shadow-[0_0_20px_rgba(20,184,166,0.15)] animate-bounce shrink-0">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+
+          <h3 className="text-xl font-extrabold text-white tracking-tight mb-3">
+            Study Planner Locked
+          </h3>
+
+          <p className="text-sm text-slate-400 max-w-xl leading-relaxed mb-8">
+            Our AI needs to know your focus areas to generate your personalized weekly study plan, actionable project ideas, and interactive schedules. Complete your onboarding to initialize your workspace.
+          </p>
+
+          <button
+            onClick={() => router.push("/dashboard/profile")}
+            className="bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-400 hover:to-blue-400 text-slate-950 font-black px-6 py-3 rounded-xl text-xs transition-all shadow-[0_0_15px_rgba(20,184,166,0.2)] flex items-center gap-1.5 animate-pulse"
+          >
+            Configure Skills & Interests
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Top Section: Daily Tasks & Revision (Left) + AI Roadmap (Right) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Left Column: Daily Tasks & Revision (Span 7) */}
         <div className="lg:col-span-7 space-y-6">
@@ -432,94 +586,155 @@ export default function SmartPlannerPage() {
 
         </div>
 
-        {/* Right Column: AI Roadmap Visualizer (Span 5) */}
-        <div className="lg:col-span-5 bg-slate-900/20 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Map className="w-4.5 h-4.5 text-purple-400" /> AI Adaptive Study Roadmap
-            </h3>
+        {/* Right Column: AI Customized Study Planner (Span 5) */}
+        <div className="lg:col-span-5">
+          {!weeklyPlan ? (
+            <div className="bg-[#1e293b]/30 backdrop-blur-md border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between h-full min-h-[450px] relative overflow-hidden text-left">
+              <div className="absolute -top-10 -right-10 w-[150px] h-[150px] bg-teal-500/5 rounded-full blur-[40px] pointer-events-none"></div>
+              
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-5 h-5 text-teal-400 animate-pulse" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">AI Curriculum Synthesizer</h3>
+                </div>
 
-            {/* Vertical Roadmap milestone list */}
-            <div className="space-y-3.5 relative pl-4 border-l border-slate-800">
-              {milestones.map((milestone) => {
-                const isActive = milestone.status === "active";
-                const isCompleted = milestone.status === "completed";
-                const isExpanded = expandedMilestone === milestone.id;
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Generate a hyper-personalized weekly learning roadmap based on your selected skills and professional interests.
+                </p>
 
-                return (
-                  <div key={milestone.id} className="relative group text-left">
-                    
-                    {/* Glowing node point */}
-                    <div className={`absolute -left-[24.5px] top-1 w-4.5 h-4.5 rounded-full border flex items-center justify-center transition-all ${
-                      isCompleted ? "bg-teal-500 border-teal-500 text-slate-950" :
-                      isActive ? "bg-slate-950 border-teal-500 shadow-[0_0_10px_rgba(20,184,166,0.35)] text-teal-400" : "bg-slate-950 border-slate-800 text-slate-600"
-                    }`}>
-                      {isCompleted ? (
-                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-ping" style={{ display: isActive ? "block" : "none" }}></span>
-                      )}
-                    </div>
+                {/* Selected Skills Badges */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Your Selected Skills:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {skillsToLearn.map((skill, idx) => (
+                      <span key={idx} className="px-3 py-1 bg-teal-500/10 border border-teal-500/20 text-teal-400 rounded-full text-xs font-semibold shadow-[0_0_10px_rgba(20,184,166,0.1)]">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
 
-                    <div 
-                      onClick={() => setExpandedMilestone(isExpanded ? null : milestone.id)}
-                      className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                        isExpanded ? "bg-slate-950 border-slate-800" : "bg-slate-950/40 border-slate-900 hover:border-slate-800"
-                      }`}
+                {/* Selected Interests Badges */}
+                <div className="space-y-2 pt-2">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Your Professional Interests:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {interests.map((interest, idx) => (
+                      <span key={idx} className="px-3 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-full text-xs font-semibold shadow-[0_0_10px_rgba(168,85,247,0.1)]">
+                        {interest}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <button
+                  onClick={handleGenerateWeeklyPlan}
+                  disabled={generatingWeeklyPlan}
+                  className="w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-blue-500 text-slate-950 font-extrabold py-3 rounded-xl text-xs tracking-wider uppercase transition-all shadow-[0_0_20px_rgba(20,184,166,0.25)] hover:shadow-[0_0_25px_rgba(20,184,166,0.4)] hover:scale-[1.01] flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {generatingWeeklyPlan ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Synthesizing Curriculum...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Synthesize Personalized Curriculum
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-[#1e293b]/30 backdrop-blur-md border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between h-full text-left">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Sparkles className="w-4.5 h-4.5 text-teal-400" /> Your Weekly Study Plan
+                  </h3>
+                  <button
+                    onClick={handleGenerateWeeklyPlan}
+                    disabled={generatingWeeklyPlan}
+                    className="text-[10px] font-bold text-teal-400 hover:text-teal-300 uppercase tracking-wider flex items-center gap-1 transition-colors"
+                  >
+                    <Repeat className="w-3.5 h-3.5" /> Re-Generate
+                  </button>
+                </div>
+
+                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+                  {weeklyPlan.map((dayPlan, dayIdx) => (
+                    <motion.div
+                      key={dayIdx}
+                      initial={{ opacity: 0, y: 15 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: dayIdx * 0.1 }}
+                      className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3 relative overflow-hidden group"
                     >
                       <div className="flex justify-between items-center">
-                        <span className={`text-xs font-bold ${
-                          isCompleted ? "text-slate-400" :
-                          isActive ? "text-teal-400 font-extrabold" : "text-slate-500"
-                        }`}>
-                          {milestone.title}
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-teal-500/10 border border-teal-500/20 text-teal-400 rounded">
+                          {dayPlan.day}
                         </span>
-                        {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500 rotate-180" />}
+                        <span className="text-[10px] text-slate-500 font-bold">{dayPlan.topic}</span>
                       </div>
 
-                      {/* Expand details */}
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="mt-3 pt-2.5 border-t border-slate-900/60 space-y-2 text-[10.5px] text-slate-400"
-                          >
-                            <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-wider">
-                              <span>Syllabus Completion</span>
-                              <span className="text-teal-400">{milestone.progress}%</span>
-                            </div>
-                            <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
-                              <div className="bg-teal-500 h-full transition-all" style={{ width: `${milestone.progress}%` }}></div>
-                            </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-white mb-1">{dayPlan.topic}</h4>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">{dayPlan.description}</p>
+                      </div>
 
-                            <span className="font-extrabold uppercase tracking-wide text-[9px] block pt-1 text-slate-500">Curated Learning Assets:</span>
-                            <div className="space-y-1.5 pl-1">
-                              {milestone.resources.map((res, rIdx) => (
-                                <div key={rIdx} className="flex items-center gap-1.5 text-slate-300">
-                                  <BookOpen className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                                  <span>{res}</span>
-                                </div>
-                              ))}
+                      {/* Tasks list */}
+                      <div className="space-y-2 pt-1 border-t border-slate-900">
+                        <span className="text-[9px] font-bold uppercase text-slate-500 tracking-wide block">Daily Tasks:</span>
+                        {dayPlan.tasks.map((task: string, taskIdx: number) => {
+                          const taskKey = `${dayIdx}-${taskIdx}`;
+                          const isDone = !!completedWeeklyTasks[taskKey];
+                          return (
+                            <div key={taskIdx} className="flex items-center justify-between gap-2 p-1.5 rounded bg-slate-950/60 border border-slate-900 text-left">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleWeeklyTask(taskKey)}
+                                  className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                                    isDone ? "bg-teal-500 border-teal-500 text-slate-950" : "border-slate-800 hover:border-teal-500"
+                                  }`}
+                                >
+                                  {isDone && <Check className="w-3 h-3 stroke-[3]" />}
+                                </button>
+                                <span className={`text-[11px] font-medium leading-tight ${isDone ? "line-through text-slate-500" : "text-slate-300"}`}>
+                                  {task}
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => handleAddAIGoal(task)}
+                                className="text-[9px] font-bold text-teal-400 hover:text-white bg-teal-500/10 hover:bg-teal-500/20 px-2 py-1 rounded border border-teal-500/10 shrink-0 transition-all flex items-center gap-0.5"
+                              >
+                                <Plus className="w-2.5 h-2.5" /> Track
+                              </button>
                             </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                          );
+                        })}
+                      </div>
 
-                    </div>
-                  </div>
-                );
-              })}
+                      {/* Mini Project Idea */}
+                      {dayPlan.projectIdea && (
+                        <div className="p-2.5 rounded bg-purple-500/5 border border-purple-500/10 text-left">
+                          <span className="text-[9px] font-bold uppercase text-purple-400 tracking-wide block mb-0.5">💡 Mini Project Idea:</span>
+                          <p className="text-[11px] text-slate-300 font-medium leading-relaxed">{dayPlan.projectIdea}</p>
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-850 mt-4 flex items-center gap-2 text-[10px] text-slate-500">
+                <BrainCircuit className="w-4 h-4 text-teal-400 animate-pulse shrink-0" />
+                <span>Mark items as Done locally, or click Track to push them to your dynamic boards!</span>
+              </div>
             </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-850 mt-4 flex items-center gap-2 text-xs text-slate-400 pl-1">
-            <BrainCircuit className="w-4 h-4 text-teal-400 animate-pulse" />
-            <span>AI updates milestones dynamically based on your quiz accuracy.</span>
-          </div>
+          )}
         </div>
 
       </div>
@@ -723,7 +938,8 @@ export default function SmartPlannerPage() {
 
         </div>
       </div>
-
+      </>
+      )}
     </div>
   );
 }

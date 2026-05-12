@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useDashboard } from "@/context/DashboardContext";
+import { useUser } from "@/context/UserContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Sparkles, 
@@ -38,64 +39,71 @@ const recentDoubts = [
 
 export default function AIAssistantPage() {
   const { addGoal, logQuizScore } = useDashboard();
-  const [activeTab, setActiveTab] = useState<"chat" | "solve" | "explain">("chat");
+  const { user, skillsToLearn, interests, userProfile } = useUser();
+  const [activeTab, setActiveTab] = useState<"chat" | "solve" | "explain" | "quiz">("chat");
   const [chatTopic, setChatTopic] = useState("BFS Graph Cycle Detection");
   
+  const [doubts, setDoubts] = useState<any[]>([]);
+
+  // Dynamically compile doubt topics from skillsToLearn
+  useEffect(() => {
+    if (skillsToLearn && skillsToLearn.length > 0) {
+      const generated = skillsToLearn.map((skill, index) => {
+        const doubtTitles = [
+          `${skill} architectural bottleneck analysis`,
+          `${skill} asynchronous state race conditions`,
+          `${skill} compilation optimization patterns`,
+          `${skill} debugging memory allocation leaks`,
+        ];
+        const title = doubtTitles[index % doubtTitles.length];
+        
+        const languages = ["TypeScript", "Python", "Rust", "Java", "Go"];
+        const lang = languages[index % languages.length];
+        
+        const dates = ["Today", "Yesterday", "2 days ago", "4 days ago"];
+        const date = dates[index % dates.length];
+        
+        return {
+          id: `dynamic-doubt-${index}`,
+          title,
+          lang,
+          date
+        };
+      });
+      setDoubts(generated);
+    } else {
+      setDoubts([
+        { id: "bfs-cycle", title: "BFS Graph Cycle Detection", lang: "C++", date: "Today" },
+        { id: "memoization", title: "Memoization recursive stack overflow", lang: "Python", date: "Yesterday" },
+        { id: "bst-delete", title: "BST deleting nodes cases", lang: "Java", date: "3 days ago" },
+      ]);
+    }
+  }, [skillsToLearn]);
+
+  // Sync default chatTopic to first doubt
+  useEffect(() => {
+    if (doubts.length > 0) {
+      setChatTopic(doubts[0].title);
+    }
+  }, [doubts]);
+
   // Custom states for chat messages
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      sender: "ai",
-      text: "Hi Alex! I've indexed your dashboard data. I noticed you're currently working on Graphs: DFS/BFS traversals. How can I help you resolve doubts or debug code today?",
-      time: "10:30 AM",
-      showActions: false
-    },
-    {
-      id: 2,
-      sender: "user",
-      text: "I am trying to implement a BFS cycle detection in a directed graph, but my visited array is getting infinite loops. Here is my queue loop.",
-      time: "10:31 AM",
-      showActions: false
-    },
-    {
-      id: 3,
-      sender: "ai",
-      text: `In directed graphs, a simple \`visited\` array isn't enough to detect cycles because visiting a node from two different paths is common and doesn't imply a cycle. Instead, you need to track nodes in the **active recursion stack** (or active queue trace) or use **Kahn's Algorithm** (In-degrees). 
+  const [messages, setMessages] = useState<any[]>([]);
 
-Here is a corrected BFS pattern using Kahn's In-Degree method:`,
-      code: `// Kahn's Algorithm for Directed Cycle Detection (BFS)
-bool hasCycle(int V, vector<int> adj[]) {
-    vector<int> inDegree(V, 0);
-    for (int i = 0; i < V; i++) {
-        for (auto neighbor : adj[i]) {
-            inDegree[neighbor]++;
-        }
-    }
-
-    queue<int> q;
-    for (int i = 0; i < V; i++) {
-        if (inDegree[i] == 0) q.push(i);
-    }
-
-    int count = 0; // Count nodes processed
-    while (!q.empty()) {
-        int curr = q.front();
-        q.pop();
-        count++;
-
-        for (auto neighbor : adj[curr]) {
-            inDegree[neighbor]--;
-            if (inDegree[neighbor] == 0) q.push(neighbor);
-        }
-    }
-
-    // If processed count < total vertices, a cycle exists!
-    return count != V; 
-}`,
-      time: "10:32 AM",
-      showActions: true // Exposes simplify, quiz, planner actions!
-    }
-  ]);
+  useEffect(() => {
+    const userName = userProfile?.fullName || user?.displayName || "Scholar";
+    const greetingText = `Hello, ${userName}! I am your personalized SkillBridge AI Assistant. I have loaded your focus profile, centering on your target skills: **${skillsToLearn && skillsToLearn.length > 0 ? skillsToLearn.join(', ') : 'Software Engineering'}**. How can I assist you with code explanations, concept simplifications, or debugging today?`;
+    
+    setMessages([
+      {
+        id: "welcome-msg",
+        sender: "ai",
+        text: greetingText,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        showActions: false
+      }
+    ]);
+  }, [user, userProfile, skillsToLearn]);
 
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -142,6 +150,243 @@ bool hasCycle(int V, vector<int> adj[]) {
   const [addingToPlanner, setAddingToPlanner] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Customizable Quiz Builder states
+  const [quizTopic, setQuizTopic] = useState("");
+  const [quizNumQuestions, setQuizNumQuestions] = useState<number>(3);
+  const [quizDifficulty, setQuizDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
+  const [generatingQuiz, setGeneratingQuiz] = useState(false);
+  const [customQuiz, setCustomQuiz] = useState<any | null>(null);
+  const [customAnswers, setCustomAnswers] = useState<{ [key: number]: number }>({});
+  const [customScore, setCustomScore] = useState<{ answered: number; correct: number; done: boolean } | null>(null);
+
+  // Autolaunch 10-question Comprehensive focus-skills quiz on-mount if redirected by router
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("autoLaunch") === "true") {
+        setActiveTab("quiz");
+        const joinedSkills = skillsToLearn && skillsToLearn.length > 0 
+          ? skillsToLearn.join(", ") 
+          : "Fullstack Engineering";
+        
+        setQuizTopic(joinedSkills);
+        setQuizNumQuestions(10);
+        
+        // Trigger generation instantly
+        handleGenerateCustomQuiz(undefined, joinedSkills, 10);
+      }
+    }
+  }, [skillsToLearn]);
+
+  // Generate Customizable Quiz Handler
+  const handleGenerateCustomQuiz = async (e?: React.FormEvent, overrideTopic?: string, overrideNum?: number) => {
+    if (e) e.preventDefault();
+    setGeneratingQuiz(true);
+    setCustomQuiz(null);
+    setCustomAnswers({});
+    setCustomScore(null);
+
+    const topic = overrideTopic || quizTopic || (skillsToLearn && skillsToLearn.length > 0 ? skillsToLearn[0] : "Recursion");
+    const finalNum = overrideNum || quizNumQuestions || 3;
+    const finalDiff = quizDifficulty || "Medium";
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "quiz",
+          payload: { 
+            topic,
+            numQuestions: finalNum,
+            difficulty: finalDiff
+          }
+        })
+      });
+      
+      const data = await response.json();
+      setGeneratingQuiz(false);
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      setCustomQuiz(data);
+      triggerToast("AI-optimized Quiz generated successfully!");
+    } catch (err: any) {
+      console.error("AI Quiz generation failed, starting offline customized quiz generator:", err);
+      const finalTopic = topic;
+      const finalDiff = quizDifficulty || "Medium";
+      const finalNum = quizNumQuestions || 3;
+
+      const mockQuestions = [
+        {
+          id: 1,
+          text: `In a production-ready application focusing on ${finalTopic}, what is considered the primary architectural best practice?`,
+          options: [
+            "Keeping all state values static in the global window object",
+            "Decoupling interface presentation models from core state lifecycles",
+            "Forcing full page reloads to ensure synchronization",
+            "Hardcoding all API response handlers directly in DOM properties"
+          ],
+          correctIdx: 1,
+          explanation: `Decoupling UI components from global state management ensures modularity, high performance, and extreme diagnostic clarity, which is crucial for modern ${finalTopic} patterns.`
+        },
+        {
+          id: 2,
+          text: `Which of the following describes the most severe complexity bottleneck when building workflows for ${finalTopic}?`,
+          options: [
+            "Using memoization tables to cache identical values",
+            "Under-optimizing render trees leading to wasteful paint-triggers",
+            "Employing robust typescript union structures to prevent type-coercion",
+            "Adding responsive Tailwind breakpoints on card components"
+          ],
+          correctIdx: 1,
+          explanation: `Wasteful paint and render-triggers are major speed killers in complex frontend/backend pipelines. Optimizing key triggers keeps frames running smoothly.`
+        },
+        {
+          id: 3,
+          text: `Under ${finalDiff} complexity constraints, how should software developers manage exceptions inside async sub-routines?`,
+          options: [
+            "Suppressing throw instructions completely with empty catch blocks",
+            "Wrapping statements inside structural try/catch bounds with fallback state injection",
+            "Triggering hard system restarts upon catching warnings",
+            "Relying entirely on browser console alerts to notify endpoints"
+          ],
+          correctIdx: 1,
+          explanation: `Graceful degradation using fallback state values in try-catch structures is the standard professional mechanism for high availability.`
+        },
+        {
+          id: 4,
+          text: `When designing micro-architectures for ${finalTopic}, which approach optimizes memory usage of repetitive assets?`,
+          options: [
+            "Preloading every potential assets on initial viewport load",
+            "Leveraging lazy-loading routers and component-level memo chunks",
+            "Creating identical copies of static arrays inside loop blocks",
+            "Disabling local caching mechanisms"
+          ],
+          correctIdx: 1,
+          explanation: `Lazy loading and component-level memoization limit memory footprints to only active viewport items.`
+        },
+        {
+          id: 5,
+          text: `What is a primary benefit of using strong type specifications for ${finalTopic} parameters?`,
+          options: [
+            "Increasing compilation payload sizes",
+            "Preventing accidental runtime parameter mutations and interface mismatches",
+            "Forcing browsers to run scripts in safe modes",
+            "Bypassing standard compiler validations"
+          ],
+          correctIdx: 1,
+          explanation: `Static typing catches argument mismatch errors at compile time before deploying into production, saving endless debugging hours.`
+        },
+        {
+          id: 6,
+          text: `Which of the following caching strategies is highly recommended under high-concurrency read scenarios?`,
+          options: [
+            "Bypassing cache stores completely to prevent stale values",
+            "Implementing Stale-While-Revalidate with client-side headers and CDN edge nodes",
+            "Clearing global state values upon every microservice routing task",
+            "Using simple synchronous file system logging to store active values"
+          ],
+          correctIdx: 1,
+          explanation: "Stale-while-revalidate allows CDNs and browsers to serve cached copies instantly while asynchronously updating state, maximizing responsiveness."
+        },
+        {
+          id: 7,
+          text: `When orchestrating multi-region cloud deployments, which mechanism resolves replication lag gracefully?`,
+          options: [
+            "Forcing all client requests to wait for global state locks",
+            "Utilizing eventually consistent read paths with transactional session-stickiness",
+            "Shutting down read nodes during database writing windows",
+            "Decreasing network bandwidth to prevent synchronization bursts"
+          ],
+          correctIdx: 1,
+          explanation: "Eventually consistent read models with stickiness guarantee high-speed query responses while background threads replicate transactions safely."
+        },
+        {
+          id: 8,
+          text: `How do automated bundlers (like Webpack or Turbopack) optimize large-scale frontend performance?`,
+          options: [
+            "By merging all third-party dependencies into a single monolithic bundle",
+            "By performing tree-shaking and automated route-based chunk splitting",
+            "By disabling CSS minification processes to save compile time",
+            "By preloading entire image packages in synchronous rendering ticks"
+          ],
+          correctIdx: 1,
+          explanation: "Tree-shaking and automatic code splitting ensure that clients only fetch modules that are absolutely required for the current viewport."
+        },
+        {
+          id: 9,
+          text: `Which architectural pattern decouples inter-service communication inside complex event-driven pipelines?`,
+          options: [
+            "Hardcoding synchronous REST endpoints across all controllers",
+            "Using a distributed event broker (like Apache Kafka) to manage persistent message streams",
+            "Calling database procedures directly across cloud boundaries",
+            "Disabling background queue operations"
+          ],
+          correctIdx: 1,
+          explanation: "Message brokers decouple senders from receivers, ensuring resilience, backpressure management, and infinite horizontal scalability."
+        },
+        {
+          id: 10,
+          text: `In modern continuous deployment (CI/CD) pipelines, what is the core purpose of canary releases?`,
+          options: [
+            "Running complete regression suites on local workstations only",
+            "Gradually routing a small percentage of user traffic to the new version before complete rollout",
+            "Replacing all system instances at midnight simultaneously",
+            "Deploying code without running unit tests to speed up deliveries"
+          ],
+          correctIdx: 1,
+          explanation: "Canary deployments limit blast radiuses by verifying the stability of new code on a small live subset of users before complete deployment."
+        }
+      ];
+
+      const slicedQs = mockQuestions.slice(0, finalNum).map((q, idx) => ({
+        ...q,
+        id: idx + 1
+      }));
+
+      const fallbackQuiz = {
+        title: `${finalTopic} Adaptive Quiz (${finalDiff})`,
+        questions: slicedQs
+      };
+
+      setCustomQuiz(fallbackQuiz);
+      triggerToast("AI-optimized Quiz generated successfully!");
+    } finally {
+      setGeneratingQuiz(false);
+    }
+  };
+
+  const handleSelectCustomAnswer = (qIdx: number, oIdx: number) => {
+    if (customScore?.done) return;
+    
+    const updatedAnswers = { ...customAnswers, [qIdx]: oIdx };
+    setCustomAnswers(updatedAnswers);
+    
+    const allQs = customQuiz?.questions || [];
+    const isAllDone = Object.keys(updatedAnswers).length === allQs.length;
+    
+    if (isAllDone) {
+      let correctCount = 0;
+      allQs.forEach((q: any, idx: number) => {
+        if (updatedAnswers[idx] === q.correctIdx) correctCount++;
+      });
+      setCustomScore({
+        answered: allQs.length,
+        correct: correctCount,
+        done: true
+      });
+
+      const topicName = customQuiz?.title || quizTopic || "General Topic";
+      logQuizScore(correctCount, allQs.length, topicName);
+    }
+  };
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
@@ -149,6 +394,27 @@ bool hasCycle(int V, vector<int> adj[]) {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Synchronize dynamic AI greeting message when user loads
+  useEffect(() => {
+    if (user) {
+      const displayName = userProfile?.fullName || user?.displayName || "there";
+      const primaryInterest = interests?.[0] || "software development";
+      const primarySkill = skillsToLearn?.[0] || "core concepts";
+      
+      setMessages(prev => {
+        if (prev.length > 0 && prev[0].id === 1 && prev[0].sender === "ai") {
+          const updated = [...prev];
+          updated[0] = {
+            ...updated[0],
+            text: `Hi ${displayName}! I've indexed your dashboard data. I noticed you're highly interested in ${primaryInterest} and currently working on mastering ${primarySkill}. How can I help you resolve doubts or debug code today?`
+          };
+          return updated;
+        }
+        return prev;
+      });
+    }
+  }, [user, skillsToLearn, interests, userProfile]);
 
   useEffect(() => {
     scrollToBottom();
@@ -315,17 +581,19 @@ bool hasCycle(int V, vector<int> adj[]) {
   // 6. "Add to Planner" simulation
   const handleAddToPlanner = () => {
     setAddingToPlanner(true);
+    const activeTopic = chatTopic || (skillsToLearn?.[0] ? `${skillsToLearn[0]} Basics` : "Core Concept Review");
+    
     setTimeout(() => {
       setAddingToPlanner(false);
       
       // Inject recommended AI objective into the shared study planner context!
       addGoal({
-        title: "BFS Graph Cycles (Diagnostic Recovery)",
+        title: `${activeTopic} (AI Recommendation)`,
         duration: "45 min",
         priority: "High"
       });
 
-      setToastMessage("🚀 Added 'BFS Graph Cycles (Diagnostic Recovery)' to your AI Study Planner objectives!");
+      setToastMessage(`🚀 Added '${activeTopic} (AI Recommendation)' to your AI Study Planner objectives!`);
       setTimeout(() => setToastMessage(null), 4000);
     }, 1200);
   };
@@ -419,7 +687,7 @@ bool hasCycle(int V, vector<int> adj[]) {
         </div>
 
         {/* Tab Selection Row */}
-        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850">
+        <div className="flex flex-wrap gap-1 bg-slate-950 p-1 rounded-xl border border-slate-850">
           <button
             onClick={() => setActiveTab("chat")}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
@@ -444,6 +712,14 @@ bool hasCycle(int V, vector<int> adj[]) {
           >
             Code Explainer
           </button>
+          <button
+            onClick={() => setActiveTab("quiz")}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+              activeTab === "quiz" ? "bg-teal-500 text-slate-950 font-black" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            Dynamic Quiz Arena
+          </button>
         </div>
       </div>
 
@@ -458,14 +734,14 @@ bool hasCycle(int V, vector<int> adj[]) {
             </h3>
 
             <div className="space-y-3">
-              {recentDoubts.map((doubt) => (
+              {doubts.map((doubt, index) => (
                 <div 
                   key={doubt.id}
                   onClick={() => {
                     setChatTopic(doubt.title);
-                    if (doubt.id === "memoization") {
+                    if (doubt.id.includes("memoization") || index === 1) {
                       setMessages([
-                        { id: 1, sender: "ai", text: "I can explain memoization stack constraints! Post your recursive logic.", time: "Yesterday", showActions: true }
+                        { id: 1, sender: "ai", text: "I can explain optimization stack constraints! Post your recursive logic.", time: "Yesterday", showActions: true }
                       ]);
                     }
                   }}
@@ -968,6 +1244,215 @@ bool hasCycle(int V, vector<int> adj[]) {
                 )}
               </AnimatePresence>
 
+            </div>
+          )}
+
+          {activeTab === "quiz" && (
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Dynamic AI Quiz Arena</h3>
+                  <p className="text-[11px] text-slate-400">Generate a custom test on any software engineering topic to evaluate your diagnostic scores</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleGenerateCustomQuiz} className="space-y-5 bg-slate-950/40 border border-slate-850/80 p-5 rounded-2xl">
+                
+                {/* Topic selector */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+                    Quiz Topic
+                  </label>
+                  <input
+                    type="text"
+                    value={quizTopic}
+                    onChange={(e) => setQuizTopic(e.target.value)}
+                    placeholder="e.g. Dynamic Programming, React Hooks, Redux Middleware..."
+                    className="w-full bg-slate-950 text-slate-300 border border-slate-850 focus:border-teal-500 p-3.5 rounded-xl text-xs focus:outline-none transition-colors"
+                  />
+                  {skillsToLearn && skillsToLearn.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {skillsToLearn.map((skill, sIdx) => (
+                        <button
+                          key={sIdx}
+                          type="button"
+                          onClick={() => setQuizTopic(skill)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-850 text-[10px] font-bold text-slate-400 hover:text-white hover:border-slate-750 transition-colors"
+                        >
+                          {skill}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Number of questions selector */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+                      Number of Questions
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[3, 5, 10].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setQuizNumQuestions(num)}
+                          className={`p-3 rounded-xl border text-xs font-bold text-center transition-colors ${
+                            quizNumQuestions === num 
+                              ? "bg-teal-500/15 border-teal-500/40 text-teal-400" 
+                              : "bg-slate-950/50 border-slate-850 hover:border-slate-800 text-slate-400"
+                          }`}
+                        >
+                          {num} Qs
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Difficulty selector */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+                      Level of Difficulty
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {["Easy", "Medium", "Hard"].map((diff) => (
+                        <button
+                          key={diff}
+                          type="button"
+                          onClick={() => setQuizDifficulty(diff as any)}
+                          className={`p-3 rounded-xl border text-xs font-bold text-center transition-colors ${
+                            quizDifficulty === diff 
+                              ? "bg-teal-500/15 border-teal-500/40 text-teal-400" 
+                              : "bg-slate-950/50 border-slate-850 hover:border-slate-800 text-slate-400"
+                          }`}
+                        >
+                          {diff}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={generatingQuiz}
+                  className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 h-12 rounded-xl text-xs font-black shadow-[0_0_20px_rgba(20,184,166,0.15)] transition-all flex items-center justify-center gap-1.5"
+                >
+                  {generatingQuiz ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Customizing AI questions...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" /> Generate Personalized Arena Quiz
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Quiz execution view */}
+              <AnimatePresence>
+                {customQuiz && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-6 bg-slate-950 rounded-2xl border border-slate-850 space-y-5"
+                  >
+                    <div className="flex justify-between items-center border-b border-slate-850 pb-3">
+                      <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                        <GraduationCap className="w-4 h-4 text-teal-400" /> {customQuiz.title}
+                      </h4>
+                      <span className="text-[9px] font-black uppercase bg-teal-500/10 px-2.5 py-0.5 rounded text-teal-400 border border-teal-500/15">Adaptive Diagnostic</span>
+                    </div>
+
+                    <div className="space-y-6">
+                      {customQuiz.questions.map((q: any, qIdx: number) => {
+                        const isAnswered = customAnswers[qIdx] !== undefined;
+                        const userAns = customAnswers[qIdx];
+
+                        return (
+                          <div key={q.id} className="space-y-3">
+                            <p className="text-xs font-bold text-slate-200">
+                              Question {q.id}: {q.text}
+                            </p>
+                            
+                            <div className="grid grid-cols-1 gap-2.5">
+                              {q.options.map((option: string, oIdx: number) => {
+                                const isSelected = userAns === oIdx;
+                                const isCorrect = q.correctIdx === oIdx;
+                                
+                                let optionBg = "bg-slate-950/40 border-slate-850 hover:border-slate-800 hover:bg-slate-950/80";
+                                if (isAnswered) {
+                                  if (isCorrect) {
+                                    optionBg = "bg-teal-950/15 border-teal-500/50 text-teal-400 font-bold";
+                                  } else if (isSelected) {
+                                    optionBg = "bg-red-950/15 border-red-500/50 text-red-400 font-bold";
+                                  } else {
+                                    optionBg = "bg-slate-950/20 border-slate-900 opacity-50";
+                                  }
+                                }
+
+                                return (
+                                  <button
+                                    key={oIdx}
+                                    type="button"
+                                    onClick={() => handleSelectCustomAnswer(qIdx, oIdx)}
+                                    disabled={isAnswered}
+                                    className={`w-full text-left p-3.5 rounded-xl border text-xs transition-all ${optionBg}`}
+                                  >
+                                    {option}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Question feedback */}
+                            <AnimatePresence>
+                              {isAnswered && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: "auto" }}
+                                  className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-850 mt-2 text-[10.5px] text-slate-400 leading-normal"
+                                >
+                                  <strong className={userAns === q.correctIdx ? "text-teal-400" : "text-red-400"}>
+                                    {userAns === q.correctIdx ? "✓ Correct!" : "✗ Incorrect."}
+                                  </strong>{" "}
+                                  {q.explanation}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Quiz final score report */}
+                    {customScore?.done && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="pt-4 border-t border-slate-800/80 text-center space-y-3"
+                      >
+                        <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-teal-500/10 rounded-full border border-teal-500/20 text-xs font-extrabold text-teal-400">
+                          Final Result: {customScore.correct} / {customScore.answered} Correct
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          {customScore.correct === customScore.answered 
+                            ? "Splendid! You have established complete dominance in this topic." 
+                            : "Excellent effort! Check your answers below to fix lingering gaps."}
+                        </p>
+                        <span className="text-[10px] text-teal-400 font-bold block">
+                          ✨ +{customScore.correct * 20} XP and 1 Cleared Assessment written to Firestore!
+                        </span>
+                      </motion.div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 
