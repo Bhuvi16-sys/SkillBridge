@@ -42,6 +42,11 @@ export interface UserProfile {
   industry?: string;
   companySize?: string;
   website?: string;
+
+  // Synced resume details
+  resumeFileName?: string;
+  resumeUrl?: string;
+  resumeUploadedAt?: string;
 }
 
 export const userProfileConverter: FirestoreDataConverter<UserProfile> = {
@@ -81,7 +86,12 @@ export const userProfileConverter: FirestoreDataConverter<UserProfile> = {
       companyName: user.companyName ?? "",
       industry: user.industry ?? "",
       companySize: user.companySize ?? "",
-      website: user.website ?? ""
+      website: user.website ?? "",
+
+      // Synced resume fields
+      resumeFileName: user.resumeFileName ?? "",
+      resumeUrl: user.resumeUrl ?? "",
+      resumeUploadedAt: user.resumeUploadedAt ?? ""
     };
   },
   fromFirestore(snapshot: QueryDocumentSnapshot, options): UserProfile {
@@ -119,7 +129,12 @@ export const userProfileConverter: FirestoreDataConverter<UserProfile> = {
       companyName: data.companyName,
       industry: data.industry,
       companySize: data.companySize,
-      website: data.website
+      website: data.website,
+
+      // Synced resume fields
+      resumeFileName: data.resumeFileName,
+      resumeUrl: data.resumeUrl,
+      resumeUploadedAt: data.resumeUploadedAt
     };
   }
 };

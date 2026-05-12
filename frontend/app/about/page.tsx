@@ -34,7 +34,7 @@ export default function AboutPage() {
               </div>
               <h2 className="text-2xl font-bold mb-4 text-white">Our Vision</h2>
               <p className="text-slate-400 leading-relaxed">
-                We envision a future where learning is perfectly personalized to every individual's unique cognitive profile. By mapping knowledge gaps at an atomic level, we help students skip the fluff, focus on weak points, and master complex subjects 10x faster.
+                We envision a future where learning is perfectly personalized to every individual&apos;s unique cognitive profile. By mapping knowledge gaps at an atomic level, we help students skip the fluff, focus on weak points, and master complex subjects 10x faster.
               </p>
             </div>
 

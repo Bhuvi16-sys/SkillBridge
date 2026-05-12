@@ -11,9 +11,7 @@ import {
   XCircle, 
   Loader2, 
   MessageSquare, 
-  Search,
-  User,
-  GraduationCap
+  Search
 } from "lucide-react";
 
 interface ConnectionItem {
@@ -72,7 +70,7 @@ export default function OutgoingConnections() {
       }
 
       setConnections(fetched);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error loading outgoing connections:", err);
       setError("Failed to load connections.");
     } finally {
@@ -82,6 +80,7 @@ export default function OutgoingConnections() {
 
   useEffect(() => {
     fetchConnections();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.uid]);
 
   const filteredConnections = connections.filter(conn => 
@@ -104,7 +103,7 @@ export default function OutgoingConnections() {
             My Scholar Connections
           </h2>
           <p className="text-sm text-slate-400 max-w-2xl leading-relaxed">
-            Monitor and audit previous student recruiter connections initiated on behalf of your hiring team. View candidates' action status and responsive messages.
+            Monitor and audit previous student recruiter connections initiated on behalf of your hiring team. View candidates&apos; action status and responsive messages.
           </p>
         </div>
       </div>
@@ -139,7 +138,7 @@ export default function OutgoingConnections() {
       ) : filteredConnections.length === 0 ? (
         <div className="p-12 bg-slate-900/20 border border-slate-850 rounded-2xl text-center text-slate-400 max-w-lg mx-auto">
           <p className="text-sm italic">No outgoing connections matched your search.</p>
-          <p className="text-xs text-slate-500 mt-1">Visit the "Find Students" tab to initiate connection handshakes with top scholars.</p>
+          <p className="text-xs text-slate-500 mt-1">Visit the &quot;Find Students&quot; tab to initiate connection handshakes with top scholars.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -169,7 +168,7 @@ export default function OutgoingConnections() {
                     <div className="flex items-start gap-1.5 p-3.5 bg-slate-950/40 border border-slate-850/60 rounded-xl text-xs text-slate-300 leading-relaxed">
                       <MessageSquare className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
                       <p>
-                        <strong className="text-slate-400">Invitation:</strong> "{conn.message}"
+                        <strong className="text-slate-400">Invitation:</strong> &quot;{conn.message}&quot;
                       </p>
                     </div>
                   </div>
