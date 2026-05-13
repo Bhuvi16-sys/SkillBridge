@@ -11,7 +11,8 @@ import {
   ChevronRight, 
   Layers, 
   LogOut,
-  Sparkles
+  Sparkles,
+  Settings
 } from 'lucide-react';
 
 export default function CompanySidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -89,8 +90,16 @@ export default function CompanySidebar({ isOpen, onClose }: { isOpen: boolean; o
           <Briefcase className="w-5 h-5" /> Assessment Scores
         </Link>
 
-
-
+        <Link 
+          href="/company-dashboard/settings" 
+          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-250 ${
+            pathname === "/company-dashboard/settings" 
+              ? "bg-teal-500/10 text-teal-400 font-medium" 
+              : "hover:bg-slate-800/50 hover:text-white"
+          }`}
+        >
+          <Settings className="w-5 h-5" /> Profile Settings
+        </Link>
 
         <button
           onClick={logout}

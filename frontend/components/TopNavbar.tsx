@@ -29,6 +29,7 @@ export default function TopNavbar({ onMenuClick }: { onMenuClick?: () => void })
     if (pathname === "/company-dashboard") pageTitle = "Corporate Recruitment Hub";
     if (pathname === "/company-dashboard/students") pageTitle = "Find Student Scholars";
     if (pathname === "/company-dashboard/connections") pageTitle = "My Scholar Connections";
+    if (pathname === "/company-dashboard/settings") pageTitle = "Corporate Profile Settings";
   } else {
     if (pathname === "/dashboard/assistant") pageTitle = "AI Assistant Hub";
     if (pathname === "/dashboard/planner") pageTitle = "AI Study Planner";
