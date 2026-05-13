@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, addDoc } from "firebase/firestore";
 
 // Initialize environment variables
 dotenv.config();
@@ -559,7 +559,167 @@ app.post("/api/gemini/suggestions", async (req, res) => {
   }
 });
 
+
+/**
+ * GET /api/candidates
+ * Fetches all available candidates (users with role === "student")
+ */
+app.get("/api/candidates", async (req, res) => {
+  try {
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("role", "==", "student"));
+    const querySnapshot = await getDocs(q);
+    const candidates = [];
+    querySnapshot.forEach((doc) => {
+      candidates.push({ id: doc.id, ...doc.data() });
+    });
+    return res.json(candidates);
+  } catch (error) {
+    console.error("Error in GET /api/candidates:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/tests
+ * Fetches all available tests, auto-populating default tests if empty
+ */
+app.get("/api/tests", async (req, res) => {
+  try {
+    const testsRef = collection(db, "tests");
+    const querySnapshot = await getDocs(testsRef);
+    let tests = [];
+    querySnapshot.forEach((doc) => {
+      tests.push({ id: doc.id, ...doc.data() });
+    });
+
+    // Seed default tests if empty
+    if (tests.length === 0) {
+      const defaultTests = [
+        { name: "Frontend Core (React & TS)", createdAt: new Date().toISOString() },
+        { name: "Backend Architecture & APIs", createdAt: new Date().toISOString() },
+        { name: "Algorithms & Data Structures", createdAt: new Date().toISOString() },
+        { name: "Fullstack Engineering Challenge", createdAt: new Date().toISOString() }
+      ];
+      for (const t of defaultTests) {
+        const docRef = await addDoc(testsRef, t);
+        tests.push({ id: docRef.id, ...t });
+      }
+    }
+    return res.json(tests);
+  } catch (error) {
+    console.error("Error in GET /api/tests:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/tests/send
+ * Assigns a test to specific candidates, creating/updating CandidateScore to 'pending'
+ */
+app.post("/api/tests/send", async (req, res) => {
+  try {
+    const { candidateId, candidateIds, testId } = req.body;
+    if (!testId) {
+      return res.status(400).json({ error: "Missing testId in request body." });
+    }
+
+    const ids = candidateIds || (candidateId ? [candidateId] : []);
+    if (ids.length === 0) {
+      return res.status(400).json({ error: "Missing candidateId or candidateIds in request body." });
+    }
+
+    // Fetch test name
+    const testRef = doc(db, "tests", testId);
+    const testSnap = await getDoc(testRef);
+    if (!testSnap.exists()) {
+      return res.status(404).json({ error: "Test not found." });
+    }
+    const testName = testSnap.data().name;
+
+    const scoresRef = collection(db, "candidate_scores");
+    const results = [];
+
+    for (const uid of ids) {
+      // Get candidate profile
+      const userRef = doc(db, "users", uid);
+      const userSnap = await getDoc(userRef);
+      let candidateName = "Unknown Candidate";
+      if (userSnap.exists()) {
+        candidateName = userSnap.data().fullName || userSnap.data().name || "Unknown Candidate";
+        
+        // Push Notification to Candidate's Subcollection
+        await addDoc(collection(db, "users", uid, "notifications"), {
+          type: "system",
+          title: `New Test Assigned: ${testName}`,
+          description: `A partner company has assigned you the test: "${testName}". Please check your assessments panel to complete it.`,
+          timestamp: "Just now",
+          createdAt: new Date().toISOString(),
+          read: false
+        });
+      }
+
+      // Check if already assigned
+      const q = query(scoresRef, where("userId", "==", uid), where("testId", "==", testId));
+      const scoreSnap = await getDocs(q);
+
+      if (scoreSnap.empty) {
+        const newScore = {
+          userId: uid,
+          candidateName,
+          testId,
+          testName,
+          score: 0,
+          status: "pending",
+          updatedAt: new Date().toISOString()
+        };
+        const docRef = await addDoc(scoresRef, newScore);
+        results.push({ id: docRef.id, ...newScore });
+      } else {
+        const scoreDocId = scoreSnap.docs[0].id;
+        const updatedData = {
+          status: "pending",
+          score: 0,
+          updatedAt: new Date().toISOString()
+        };
+        await updateDoc(doc(db, "candidate_scores", scoreDocId), updatedData);
+        results.push({ id: scoreDocId, userId: uid, candidateName, testId, testName, ...updatedData });
+      }
+    }
+
+    return res.json({ success: true, results });
+  } catch (error) {
+    console.error("Error in POST /api/tests/send:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/tests/scores
+ * Fetches candidate scores. Optionally filter by status (e.g. 'completed' or 'pending')
+ */
+app.get("/api/tests/scores", async (req, res) => {
+  try {
+    const { status } = req.query;
+    const scoresRef = collection(db, "candidate_scores");
+    let q = scoresRef;
+    if (status) {
+      q = query(scoresRef, where("status", "==", status));
+    }
+    const querySnapshot = await getDocs(q);
+    const scores = [];
+    querySnapshot.forEach((doc) => {
+      scores.push({ id: doc.id, ...doc.data() });
+    });
+    return res.json(scores);
+  } catch (error) {
+    console.error("Error in GET /api/tests/scores:", error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // Start the Express server
+
 app.listen(PORT, () => {
   console.log(`🚀 StudyApp Backend server is running on http://localhost:${PORT}`);
   console.log(`- Health Check: http://localhost:${PORT}/health`);

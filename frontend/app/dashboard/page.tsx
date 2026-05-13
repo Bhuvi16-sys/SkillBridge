@@ -30,7 +30,6 @@ import { useDashboard } from "@/context/DashboardContext";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useUser } from "@/context/UserContext";
 import { useRouter } from "next/navigation";
-import axios from "axios";
 
 
 
@@ -89,18 +88,7 @@ export default function StudentDashboard() {
     return list;
   }, [dynamicNodes]);
 
-  const handleLogHours = async (hours: number) => {
-    if (!stats.user) return;
-    try {
-      await axios.post("/api/user/stats/update", {
-        uid: stats.user.uid,
-        hours
-      });
-      await stats.refreshData();
-    } catch (error) {
-      console.error("Error logging study hours via Axios:", error);
-    }
-  };
+
 
   const { goals: tasks, toggleGoal: handleToggleTask, addGoal, notifications, markNotificationRead, clearAllNotifications, weakTopics, aiSuggestions, logQuizScore } = useDashboard();
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -194,7 +182,7 @@ export default function StudentDashboard() {
     if (logHours <= 0) return;
     setIsSubmittingLog(true);
     try {
-      await handleLogHours(logHours);
+      await stats.logStudyHours(logHours);
       setLogSuccess(`Successfully logged ${logHours} study hours!`);
       setLogHours(1.0);
       setTimeout(() => setLogSuccess(null), 4000);

@@ -78,6 +78,18 @@ export default function CompanySidebar({ isOpen, onClose }: { isOpen: boolean; o
           <Users2 className="w-5 h-5" /> Find Students
         </Link>
 
+        <Link 
+          href="/company-dashboard/assessments" 
+          className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-250 ${
+            pathname === "/company-dashboard/assessments" 
+              ? "bg-teal-500/10 text-teal-400 font-medium" 
+              : "hover:bg-slate-800/50 hover:text-white"
+          }`}
+        >
+          <Briefcase className="w-5 h-5" /> Assessment Scores
+        </Link>
+
+
 
 
         <button

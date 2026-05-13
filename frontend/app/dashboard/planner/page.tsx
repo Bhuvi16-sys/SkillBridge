@@ -349,9 +349,9 @@ export default function SmartPlannerPage() {
       </AnimatePresence>
 
       {/* Header Banner */}
-      <div className="flex justify-between items-center bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-6 rounded-2xl">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-6 rounded-2xl gap-6">
         <div className="flex items-center gap-3 text-left">
-          <div className="p-2.5 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400">
+          <div className="p-2.5 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 shrink-0">
             <Calendar className="w-6 h-6" />
           </div>
           <div>
@@ -361,14 +361,14 @@ export default function SmartPlannerPage() {
         </div>
 
         {!isProfileIncomplete && (
-          <div className="flex gap-4">
-            <div className="bg-slate-950/60 px-4 py-2 rounded-xl border border-slate-850/60 text-center">
+          <div className="flex flex-wrap sm:flex-nowrap gap-4 w-full lg:w-auto">
+            <div className="flex-1 lg:flex-none bg-slate-950/60 px-4 py-2 rounded-xl border border-slate-850/60 text-center">
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Spaced Reviews</p>
               <p className="text-sm font-extrabold text-teal-400">
                 {revisionTasks.filter(t => t.daysLeft <= 1).length} Due Today
               </p>
             </div>
-            <div className="bg-slate-950/60 px-4 py-2 rounded-xl border border-slate-850/60 text-center">
+            <div className="flex-1 lg:flex-none bg-slate-950/60 px-4 py-2 rounded-xl border border-slate-850/60 text-center">
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Objectives Met</p>
               <p className="text-sm font-extrabold text-blue-400">
                 {dailyTasks.filter(t => t.completed).length} / {dailyTasks.length} Completed
@@ -420,38 +420,40 @@ export default function SmartPlannerPage() {
               <CheckSquare className="w-4.5 h-4.5 text-teal-400" /> Active Daily Goals
             </h3>
 
-            <form onSubmit={handleAddDailyTask} className="flex gap-2">
+            <form onSubmit={handleAddDailyTask} className="flex flex-col sm:flex-row gap-2 w-full">
               <input
                 type="text"
                 value={newDailyText}
                 onChange={(e) => setNewDailyText(e.target.value)}
                 placeholder="Add daily goal (e.g. Solve BFS adjacency map codes)..."
-                className="flex-1 bg-slate-950/80 border border-slate-850 focus:border-teal-500 text-xs px-3.5 h-10 rounded-xl text-slate-200 placeholder-slate-600 focus:outline-none transition-colors"
+                className="flex-1 bg-slate-950/80 border border-slate-850 focus:border-teal-500 text-xs px-3.5 h-10 rounded-xl text-slate-200 placeholder-slate-600 focus:outline-none transition-colors w-full"
               />
-              <select
-                value={newDailyDuration}
-                onChange={(e) => setNewDailyDuration(e.target.value)}
-                className="bg-slate-950 border border-slate-850 text-xs px-2 h-10 rounded-xl text-slate-300 focus:outline-none focus:border-teal-500"
-              >
-                <option value="15m">15 min</option>
-                <option value="30m">30 min</option>
-                <option value="45m">45 min</option>
-                <option value="1h">1 hour</option>
-              </select>
-              <select
-                value={newDailyPriority}
-                onChange={(e) => setNewDailyPriority(e.target.value as any)}
-                className="bg-slate-950 border border-slate-850 text-xs px-2 h-10 rounded-xl text-slate-300 focus:outline-none focus:border-teal-500"
-              >
-                <option value="Medium">Medium</option>
-                <option value="High">High Priority</option>
-              </select>
-              <button
-                type="submit"
-                className="bg-teal-500 hover:bg-teal-400 text-slate-950 px-4 h-10 rounded-xl text-xs font-black transition-colors shrink-0"
-              >
-                Add
-              </button>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <select
+                  value={newDailyDuration}
+                  onChange={(e) => setNewDailyDuration(e.target.value)}
+                  className="flex-1 sm:flex-none bg-slate-950 border border-slate-850 text-xs px-2 h-10 rounded-xl text-slate-300 focus:outline-none focus:border-teal-500"
+                >
+                  <option value="15m">15 min</option>
+                  <option value="30m">30 min</option>
+                  <option value="45m">45 min</option>
+                  <option value="1h">1 hour</option>
+                </select>
+                <select
+                  value={newDailyPriority}
+                  onChange={(e) => setNewDailyPriority(e.target.value as any)}
+                  className="flex-1 sm:flex-none bg-slate-950 border border-slate-850 text-xs px-2 h-10 rounded-xl text-slate-300 focus:outline-none focus:border-teal-500"
+                >
+                  <option value="Medium">Medium</option>
+                  <option value="High">High Priority</option>
+                </select>
+                <button
+                  type="submit"
+                  className="bg-teal-500 hover:bg-teal-400 text-slate-950 px-5 h-10 rounded-xl text-xs font-black transition-colors shrink-0"
+                >
+                  Add
+                </button>
+              </div>
             </form>
 
             <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
@@ -542,10 +544,10 @@ export default function SmartPlannerPage() {
                   </div>
 
                   {/* Rescheduling buttons */}
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1.5 w-full md:w-auto">
                     <button
                       onClick={() => handleRescheduleRevision(task.id, "Easy")}
-                      className={`px-2.5 py-1.5 rounded text-[10px] font-bold border transition-colors ${
+                      className={`flex-1 md:flex-none px-2.5 py-1.5 rounded text-[10px] font-bold border transition-colors ${
                         task.difficulty === "Easy" 
                           ? "bg-teal-500 text-slate-950 border-teal-500" 
                           : "bg-slate-900 border-slate-800 hover:border-slate-700 text-teal-400"
@@ -555,7 +557,7 @@ export default function SmartPlannerPage() {
                     </button>
                     <button
                       onClick={() => handleRescheduleRevision(task.id, "Medium")}
-                      className={`px-2.5 py-1.5 rounded text-[10px] font-bold border transition-colors ${
+                      className={`flex-1 md:flex-none px-2.5 py-1.5 rounded text-[10px] font-bold border transition-colors ${
                         task.difficulty === "Medium" 
                           ? "bg-amber-500 text-slate-950 border-amber-500" 
                           : "bg-slate-900 border-slate-800 hover:border-slate-700 text-amber-400"
@@ -565,7 +567,7 @@ export default function SmartPlannerPage() {
                     </button>
                     <button
                       onClick={() => handleRescheduleRevision(task.id, "Hard")}
-                      className={`px-2.5 py-1.5 rounded text-[10px] font-bold border transition-colors ${
+                      className={`flex-1 md:flex-none px-2.5 py-1.5 rounded text-[10px] font-bold border transition-colors ${
                         task.difficulty === "Hard" 
                           ? "bg-red-500 text-slate-950 border-red-500" 
                           : "bg-slate-900 border-slate-800 hover:border-slate-700 text-red-400"
@@ -751,17 +753,17 @@ export default function SmartPlannerPage() {
           </div>
 
           {/* New Kanban item form */}
-          <form onSubmit={handleAddBacklogTask} className="flex gap-2">
+          <form onSubmit={handleAddBacklogTask} className="flex gap-2 w-full md:w-auto">
             <input
               type="text"
               value={newBacklogText}
               onChange={(e) => setNewBacklogText(e.target.value)}
               placeholder="Add backlog task (e.g. BST deletion code)..."
-              className="bg-slate-950/80 border border-slate-850 focus:border-teal-500 text-xs px-3.5 h-9 rounded-xl text-slate-200 placeholder-slate-600 focus:outline-none transition-colors"
+              className="flex-1 bg-slate-950/80 border border-slate-850 focus:border-teal-500 text-xs px-3.5 h-9 rounded-xl text-slate-200 placeholder-slate-600 focus:outline-none transition-colors w-full"
             />
             <button
               type="submit"
-              className="bg-teal-500 hover:bg-teal-400 text-slate-950 px-3.5 h-9 rounded-xl text-xs font-black transition-colors flex items-center gap-1"
+              className="bg-teal-500 hover:bg-teal-400 text-slate-950 px-3.5 h-9 rounded-xl text-xs font-black transition-colors flex items-center gap-1 shrink-0"
             >
               <Plus className="w-3.5 h-3.5" /> Backlog
             </button>

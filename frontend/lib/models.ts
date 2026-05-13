@@ -401,3 +401,68 @@ export const notificationConverter: FirestoreDataConverter<NotificationItem> = {
     };
   }
 };
+
+/**
+ * 7. RECRUITER TESTS & CANDIDATE SCORES
+ */
+export interface Test {
+  id?: string;
+  name: string;
+  createdAt?: string;
+}
+
+export interface CandidateScore {
+  id?: string;
+  userId: string;
+  candidateName: string;
+  testId: string;
+  testName: string;
+  score: number;
+  status: "pending" | "completed";
+  updatedAt: string;
+}
+
+export const testConverter: FirestoreDataConverter<Test> = {
+  toFirestore(test: WithFieldValue<Test>): DocumentData {
+    return {
+      name: test.name,
+      createdAt: test.createdAt || new Date().toISOString()
+    };
+  },
+  fromFirestore(snapshot: QueryDocumentSnapshot, options): Test {
+    const data = snapshot.data(options)!;
+    return {
+      id: snapshot.id,
+      name: data.name,
+      createdAt: data.createdAt
+    };
+  }
+};
+
+export const candidateScoreConverter: FirestoreDataConverter<CandidateScore> = {
+  toFirestore(score: WithFieldValue<CandidateScore>): DocumentData {
+    return {
+      userId: score.userId,
+      candidateName: score.candidateName,
+      testId: score.testId,
+      testName: score.testName,
+      score: score.score ?? 0,
+      status: score.status ?? "pending",
+      updatedAt: score.updatedAt || new Date().toISOString()
+    };
+  },
+  fromFirestore(snapshot: QueryDocumentSnapshot, options): CandidateScore {
+    const data = snapshot.data(options)!;
+    return {
+      id: snapshot.id,
+      userId: data.userId,
+      candidateName: data.candidateName,
+      testId: data.testId,
+      testName: data.testName,
+      score: data.score,
+      status: data.status,
+      updatedAt: data.updatedAt
+    };
+  }
+};
+
